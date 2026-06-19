@@ -1,0 +1,6 @@
+{
+  "name": "arabprompt",
+  "description": "منصة ذكية متكاملة لتوليد وتحسين وصياغة هندسة الأوامر الرقمية (Prompts) بالعربية والانجليزية مدعومة بنموذج Gemini.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

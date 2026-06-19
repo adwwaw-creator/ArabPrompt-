@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net catch-all: deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validation Blueprints
+    function isValidVisitor(val) {
+      return val.count is number && val.count > 0 &&
+             (!val.keys().hasAny(['updatedAt']) || (val.updatedAt is string && val.updatedAt.size() <= 64));
+    }
+
+    function isValidUser(val) {
+      return val.uid is string && val.uid.size() <= 128 && val.uid == request.auth.uid &&
+             val.email is string && val.email.size() <= 256 &&
+             (!val.keys().hasAny(['displayName']) || (val.displayName is string && val.displayName.size() <= 256)) &&
+             (!val.keys().hasAny(['photoURL']) || (val.photoURL is string && val.photoURL.size() <= 2048)) &&
+             (!val.keys().hasAny(['emailVerified']) || (val.emailVerified is bool)) &&
+             (!val.keys().hasAny(['createdAt']) || (val.createdAt is string && val.createdAt.size() <= 64)) &&
+             (!val.keys().hasAny(['lastActive']) || (val.lastActive is string && val.lastActive.size() <= 64));
+    }
+
+    function isValidHistory(val) {
+      return val.id is string && val.id.size() <= 128 &&
+             val.timestamp is string && val.timestamp.size() <= 64 &&
+             val.originalText is string && val.originalText.size() <= 50000 &&
+             val.optimizedText is string && val.optimizedText.size() <= 100000 &&
+             val.model is string && val.model.size() <= 64 &&
+             val.tone is string && val.tone.size() <= 64 &&
+             val.category is string && val.category.size() <= 64 &&
+             (!val.keys().hasAny(['translatedText']) || (val.translatedText is string && val.translatedText.size() <= 100000)) &&
+             (!val.keys().hasAny(['actionType']) || (val.actionType is string && val.actionType.size() <= 64)) &&
+             (!val.keys().hasAny(['isFallback']) || (val.isFallback is bool)) &&
+             (!val.keys().hasAny(['styleImage']) || (val.styleImage is string && val.styleImage.size() <= 2048)) &&
+             (!val.keys().hasAny(['contentImage']) || (val.contentImage is string && val.contentImage.size() <= 2048)) &&
+             (!val.keys().hasAny(['notes']) || (val.notes is string && val.notes.size() <= 10000)) &&
+             (!val.keys().hasAny(['isMimicMode']) || (val.isMimicMode is bool)) &&
+             (!val.keys().hasAny(['isFavorite']) || (val.isFavorite is bool));
+    }
+
+    // Rules for Unique Visitors
+    match /visitors/{id} {
+      allow read: if true;
+      allow create: if isValidId(id) && id == 'global' && isValidVisitor(incoming());
+      allow update: if isValidId(id) && id == 'global' && isValidVisitor(incoming()) &&
+                    (incoming().count == existing().count + 1 || incoming().count == existing().count);
+    }
+
+    // Rules for Test Connection check
+    match /test/{id} {
+      allow read: if true;
+    }
+
+    // Rules for User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+      allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isEmailVerified() && isValidUser(incoming());
+    }
+
+    // Rules for User specific history subcollections
+    match /users/{userId}/history/{itemId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(itemId);
+      allow list: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+      
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(itemId) && isEmailVerified() && 
+                    exists(/databases/$(database)/documents/users/$(userId)) &&
+                    isValidHistory(incoming());
+                    
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(itemId) && isEmailVerified() &&
+                    exists(/databases/$(database)/documents/users/$(userId)) &&
+                    isValidHistory(incoming()) &&
+                    incoming().id == existing().id && // Immortal Field
+                    incoming().timestamp == existing().timestamp; // Immortal Field
+                    
+      allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(itemId) &&
+                    exists(/databases/$(database)/documents/users/$(userId));
+    }
+  }
+}
