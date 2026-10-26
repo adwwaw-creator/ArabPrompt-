@@ -26,13 +26,11 @@ import {
   Film,
   Palette,
   Wand2,
-  ExternalLink,
-  Heart
+  ExternalLink
 } from 'lucide-react';
 import { ModelType, AppLanguage } from '../types';
 import { showToast } from './ToastNotification';
 import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
-import AdSenseBanner from './AdSenseBanner';
 
 interface LearnedDna {
   palette: string[];
@@ -917,59 +915,26 @@ export default function PromptReverser({ lang, onSendToTester, onNavigateToBuild
                   </p>
                 </div>
               ) : loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-6 px-2 text-center space-y-4">
-                  <div className="flex flex-col items-center space-y-2">
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full border-4 border-[#c29b40]/25 border-t-[#c29b40] animate-spin" />
-                      <Sparkles className="w-5 h-5 text-[#c29b40] absolute inset-0 m-auto animate-pulse" />
-                    </div>
-
-                    <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/15 border border-[#c29b40]/35 text-[#916a24] font-black text-xs animate-pulse">
-                      <span>⏳</span>
-                      <span>{lang === 'ar' ? 'انتظر... جاري التحليل واستخراج البرومبت' : 'Please wait... Analyzing & extracting prompt'}</span>
-                    </div>
-
-                    <p className="text-xs font-bold text-stone-700">
-                      {lang === 'ar' 
-                        ? (reverserMode === 'video'
-                          ? 'يقوم محرك Gemini بدراسة المنحنيات الحركية ومسارات الكاميرا للفيديو...'
-                          : reverserMode === 'mimic' 
-                            ? 'يقوم محرك دمج الأنماط بدراسة ومطابقة بصريات الصورتين معاً...' 
-                            : 'يقوم محرك Gemini بفحص تفاصيل بكسلات صورتك...')
-                        : (reverserMode === 'video'
-                          ? 'Gemini is evaluating motion curves, camera paths, and lighting layers...'
-                          : reverserMode === 'mimic' 
-                            ? 'Gemini is running style fusion algorithm on both images...' 
-                            : 'Gemini is dissecting image layers...')}
-                    </p>
-                  </div>
-
-                  {/* Support Request Banner */}
-                  <div className="w-full max-w-md mx-auto p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#c29b40]/15 to-amber-500/10 border border-[#c29b40]/40 shadow-xs text-center space-y-1.5 animate-in fade-in">
-                    <div className="flex items-center justify-center gap-1.5 text-xs font-black text-[#916a24]">
-                      <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 animate-pulse" />
-                      <span>
-                        {lang === 'ar' 
-                          ? 'طلب دعم: مشاهدتك للإشهار تدعم استمرار المنصة مجاناً ❤️' 
-                          : 'Support Us: Viewing this ad keeps ArabPrompt 100% free ❤️'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-stone-600 leading-relaxed font-medium">
-                      {lang === 'ar' 
-                        ? 'المنصة مجانية 100%. دعمك بمشاهدة الإعلان أثناء انتظار معالجة الصورة يساعدنا في استمرار الخدمة مجاناً للجميع.' 
-                        : 'ArabPrompt is 100% free. Your support by viewing this ad while processing helps keep the service free for all.'}
-                    </p>
-                  </div>
-
-                  {/* Google AdSense Banner */}
-                  <div className="w-full max-w-md mx-auto">
-                    <AdSenseBanner
-                      client="ca-pub-3312377428939400"
-                      lang={lang}
-                      showPlaceholderBadge={true}
-                      minHeight={110}
-                    />
-                  </div>
+                <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-8 h-8 rounded-full border-2 border-[#c29b40]/10 border-t-[#c29b40] animate-spin mb-4" />
+                  <p className="text-xs font-bold text-stone-600">
+                    {lang === 'ar' 
+                      ? (reverserMode === 'video'
+                        ? 'يقوم محرك Gemini بدراسة المنحنيات الحركية ومسارات الكاميرا للفيديو...'
+                        : reverserMode === 'mimic' 
+                          ? 'يقوم محرك دمج الأنماط بدراسة ومطابقة بصريات الصورتين معاً...' 
+                          : 'يقوم محرك Gemini بفحص تفاصيل بكسلات صورتك...')
+                      : (reverserMode === 'video'
+                        ? 'Gemini is evaluating motion curves, camera paths, and lighting layers of your video clip...'
+                        : reverserMode === 'mimic' 
+                          ? 'Gemini is running style fusion algorithm on both images...' 
+                          : 'Gemini is dissecting image layers...')}
+                  </p>
+                  <p className="text-[10px] text-stone-400 mt-1.5 max-w-[220px] leading-relaxed mx-auto">
+                    {lang === 'ar' 
+                      ? 'يستغرق الفك والدمج ما بين ٤ إلى ٩ ثواني لتحقيق التوازن التناسقي الهندسي للحركية.' 
+                      : 'Deconstruction and style blending takes 4 to 9 seconds to balance aesthetic layers and structural bounds.'}
+                  </p>
                 </div>
               ) : extractedPrompt ? (
                 <div className="space-y-4 flex-1 flex flex-col justify-between">

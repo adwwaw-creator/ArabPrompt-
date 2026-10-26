@@ -148,39 +148,6 @@ export interface CinemaScene {
   actLabelEn?: string;
 }
 
-export interface StoryPathChoice {
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  icon: string;
-  descriptionAr: string;
-  descriptionEn: string;
-  badgeAr?: string;
-  badgeEn?: string;
-  toneAr?: string;
-  toneEn?: string;
-  outcomePreviewAr?: string;
-  outcomePreviewEn?: string;
-  promptModifierKeywords?: string[];
-  sceneOverrides: {
-    sceneNumber: number;
-    titleAr?: string;
-    titleEn?: string;
-    dramaticActionAr?: string;
-    screenplayBeatAr?: string;
-    screenplayBeatEn?: string;
-    dialogueAr?: string;
-    dialogueEn?: string;
-    dialogueSpeaker?: string;
-    dialogueEmotion?: string;
-    dialogueTiming?: string;
-    videoPromptEn?: string;
-    soundDesign?: string;
-    cameraMotion?: string;
-    shotType?: string;
-  }[];
-}
-
 export interface MovieProject {
   id: string;
   titleAr: string;
@@ -199,8 +166,6 @@ export interface MovieProject {
   totalDurationSeconds: number;
   templateId?: string;
   actStructure?: ActStructure;
-  availablePaths?: StoryPathChoice[];
-  activePathId?: string;
   createdAt: string;
   updatedAt: string;
 }

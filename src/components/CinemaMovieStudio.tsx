@@ -47,13 +47,9 @@ import {
   Globe,
   Wand2,
   Printer,
-  FileDown,
-  FlaskConical,
-  BookOpen,
-  Scroll
+  FileDown
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AppLanguage, MovieProject, CinemaScene, CharacterFaceAnchor, ModelType, ScreenplayTemplate, ActStructure, ActPhase, StoryPathChoice } from '../types';
+import { AppLanguage, MovieProject, CinemaScene, CharacterFaceAnchor, ModelType, ScreenplayTemplate, ActStructure, ActPhase } from '../types';
 import { 
   getUserMovieProjects, 
   saveUserMovieProject, 
@@ -65,17 +61,6 @@ import {
   decodeSequenceFromHash
 } from '../utils/firestoreService';
 import ShareSequenceModal from './ShareSequenceModal';
-import StoryScreenplayTesterModal from './StoryScreenplayTesterModal';
-import HistoricalLegendsModal from './HistoricalLegendsModal';
-import SceneAuthoringModal from './SceneAuthoringModal';
-import { generateLocalDialogueSuggestions, refineSceneWithLocalAi } from '../utils/localSceneDesigner';
-import { 
-  ARABIC_HISTORICAL_LEGENDS, 
-  ARABIC_HISTORICAL_MOVIES, 
-  HistoricalLegendScreenplay,
-  convertLegendToMovieProject,
-  applyStoryPathToMovieProject 
-} from '../data/arabicHistoricalLegends';
 import { showToast } from './ToastNotification';
 import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
 import { User } from 'firebase/auth';
@@ -269,146 +254,6 @@ export const SCREENPLAY_TEMPLATES: ScreenplayTemplate[] = [
       act3DescriptionAr: 'الاصطفاف النهائي عند مدخل الواحة، هجوم فروسية أسطوري يكسر شوكة الغزاة، واستعادة السلام لأهل الأرض.',
       act3DescriptionEn: 'An epic dawn cavalry charge saving the springs, celebrated with majestic anthems and legacy banners.'
     }
-  },
-  {
-    id: 'legend-arab-myth',
-    genre: 'فانتازيا وأساطير',
-    nameAr: 'أساطير وفانتازيا عربية',
-    nameEn: 'Arabian Myth & Wonder',
-    icon: '✨',
-    taglineAr: 'خوارق الطبيعة، كائنات خرافية كطائر الرخ، ونبوءات بصرية خارقة تتحدى المستحيل',
-    taglineEn: 'Supernatural lore, mythical beasts like the Roc, and prophetic visions defying the impossible',
-    defaultConceptAr: 'امرأة ذات بصر خارق ترى في الأفق شجراً يسير يتخفى خلفه جيش غازٍ، وتسابق الوقت لإنذار قومها من هلاك محتوم وسط تشكيك الجميع.',
-    defaultConceptEn: 'A seer gifted with vision across deserts spots a moving forest concealing an invading army, racing against disbelief.',
-    suggestedHeroRoleAr: 'حكيمة أو بطل أسطوري يواجه قوى الطبيعة والخوارق',
-    suggestedHeroRoleEn: 'Mythic protagonist confronting supernatural phenomena',
-    recommendedStyle: 'IMAX Ultra-Realism 8K',
-    acts: {
-      act1TitleAr: 'البداية: نذر الأسطورة ورصد الظاهرة الخارقة',
-      act1TitleEn: 'Act I: The Omen & Supernatural Anomaly',
-      act1DescriptionAr: 'وقوع حادثة غريبة تخترق نواميس الطبيعة، واكتشاف البطل لإشارة أسطورية تنذر بخطر داهم.',
-      act1DescriptionEn: 'An impossible anomaly manifests breaking natural laws; the protagonist decodes the ancient omen.',
-      act2TitleAr: 'الوسط: مواجهة الخوارق وتصاعد الشكوك',
-      act2TitleEn: 'Act II: Mythic Confrontation & Trials',
-      act2DescriptionAr: 'رحلة إلى معاقل الأساطير، مواجهة كائنات ضخمة أو تشكيك الحلفاء، والبحث عن تعويذة أو سلاح النصر.',
-      act2DescriptionEn: 'Journeying into mythical sanctuaries, facing colossal beasts or skepticism, seeking ancient talismans.',
-      act3TitleAr: 'الذروة: النور الساطع وتحقق النبوءة',
-      act3TitleEn: 'Act III: Celestial Awakening & Triumph',
-      act3DescriptionAr: 'كشف الحقيقة كاملة، إطلاق القوة الكامنة أو السيف الأثري، وإعادة التوازن للأرض والممالك.',
-      act3DescriptionEn: 'The climactic release of talismanic energy, restoring harmony between mankind and the mythic realm.'
-    }
-  },
-  {
-    id: 'legend-desert-chivalry',
-    genre: 'تاريخي وملحمي تراثي',
-    nameAr: 'فروسية ومروءة الصحراء',
-    nameEn: 'Desert Chivalry & Honor',
-    icon: '⚔️',
-    taglineAr: 'شجاعة نادرة، كرم أسطوري، تضحية الفرسان، ومروءة عربية تصنع الخلود',
-    taglineEn: 'Legendary chivalric courage, desert magnanimity, and selfless sacrifice for honor',
-    defaultConceptAr: 'فارس شهم يمتطي جواده الأدهم بمفرده لاختراق حصار غارة مباغتة، والذود عن مضارب حيه لإنقاذ محبوبته مبرهناً أن الشرف في الأفعال لا الأنساب.',
-    defaultConceptEn: 'A solitary champion charges through an enemy siege to rescue his beloved and defend his tribe’s sacred honor.',
-    suggestedHeroRoleAr: 'فارس شجاع ذو نخوة ومروءة يذود عن قومه والضعفاء',
-    suggestedHeroRoleEn: 'Chivalric knight-poet upholding desert honor against raiders',
-    recommendedStyle: 'Golden Desert Epic (Dune Style)',
-    acts: {
-      act1TitleAr: 'البداية: نذر الخطر ونداء المروءة',
-      act1TitleEn: 'Act I: The Threat & The Call to Valor',
-      act1DescriptionAr: 'اقتراب غبار الغارة وصيحات الاستغاثة، واتخاذ الفارس قراره بالخروج الفردي لصد الخطر.',
-      act1DescriptionEn: 'Enemy dust clouds approach; the knight embraces his destiny, preparing his steed for solitary defense.',
-      act2TitleAr: 'الوسط: اختراق الحصار وصدمة الرماح',
-      act2TitleEn: 'Act II: Piercing the Siege & Clash of Steel',
-      act2DescriptionAr: 'اقتحام صفوف العدو، صمود بطولي أمام وابل السهام، وتحويل مسار المعركة بحنكة قتالية ملهمة.',
-      act2DescriptionEn: 'Charging directly into enemy lines, enduring relentless skirmishes, and turning the tide through tactical valor.',
-      act3TitleAr: 'الذروة: النصر الخالد وراية الشرف',
-      act3TitleEn: 'Act III: The Triumphant Dawn & Eternal Glory',
-      act3DescriptionAr: 'حسم النزال الفاصل، رفع راية القبيلة، وتخليد تضحية الفارس كرمز للمروءة عبر الأجيال.',
-      act3DescriptionEn: 'Overcoming the warlord, raising the standard of victory, and sealing an immortal legacy of honor.'
-    }
-  },
-  {
-    id: 'template-sayf-yazan',
-    genre: 'فانتازيا وأساطير',
-    nameAr: 'سيف بن ذي يزن وطائر الرخ',
-    nameEn: 'Sayf ibn Dhi Yazan & The Roc',
-    icon: '🪶',
-    taglineAr: 'ملحمة يمنية أسطورية، صعود قمم السحاب، واسترداد سيف الأجداد من عش طائر الرخ',
-    taglineEn: 'Ascending cloud peaks into the mythic Roc aerie to reclaim the talismanic ancestral blade',
-    defaultConceptAr: 'الأمير سيف بن ذي يزن يصعد قمم جبال السحاب الوعرة لمواجهة طائر الرخ العملاق واسترداد سيف الأجداد لكسر قوى الظلام وتحرير أرض اليمن.',
-    defaultConceptEn: 'Prince Sayf scales mist-shrouded cloud mountains to retrieve the enchanted ancestral blade guarded by the colossal Roc.',
-    suggestedHeroRoleAr: 'سيف بن ذي يزن - أمير وفارس حميري شجاع يحمل جنبية العقيق وعباءة الذهب',
-    suggestedHeroRoleEn: 'Prince Sayf - courageous Himyarite hero carrying ancient talisman dagger',
-    recommendedStyle: 'IMAX Ultra-Realism 8K',
-    acts: {
-      act1TitleAr: 'البداية: تسلق حافة الهاوية نحو قمة الغيوم',
-      act1TitleEn: 'Act I: Ascent Above the Cloudline',
-      act1DescriptionAr: 'سيف بن ذي يزن يتسلق الصخور الجبلية الوعرة بحبال متينة ليصل إلى وادٍ معلق بين قمم الجبال.',
-      act1DescriptionEn: 'Sayf scales vertical basalt needles in Yemeni highlands, piercing through dense mist to emerge onto a sunlit aerie.',
-      act2TitleAr: 'الوسط: هبوب الريح العاتية وظل أجنحة الرخ',
-      act2TitleEn: 'Act II: The Shadow of Colossal Wings',
-      act2DescriptionAr: 'السماء تظلم فجأة مع هبوط طائر الرخ العملاق الذي تحجب أجنحته ضوء الشمس وسط عاصفة هوجاء.',
-      act2DescriptionEn: 'Daylight turns to eclipse as titanic wings span the mountain chasm; hurricane downdrafts buffet the prince.',
-      act3TitleAr: 'الذروة: استرداد السيف الذهبي وإطلاق النور',
-      act3TitleEn: 'Act III: The Talisman Blade Awakens',
-      act3DescriptionAr: 'سيف يسحب السيف المنغرس في صخرة العقيق، وينطلق شعاع ناصع يُخضع الوحش ويبدأ تحرير اليمن.',
-      act3DescriptionEn: 'Sayf reaches the nest center, drawing the ancient rune-carved sword; a brilliant flash of blue light tames the creature.'
-    }
-  },
-  {
-    id: 'template-ibn-battuta',
-    genre: 'تاريخي وملحمي تراثي',
-    nameAr: 'رحلات ابن بطوطة والمحيط',
-    nameEn: 'The Travels of Ibn Battuta',
-    icon: '🧭',
-    taglineAr: 'أمير الرحالة، صراع عواصف المونسون في بحر الهند، وتدوين غرائب الأمم وحضارات العالم',
-    taglineEn: 'Thirty years across 73,000 miles, navigating monsoon tempests and chronicling medieval wonders',
-    defaultConceptAr: 'ابن بطوطة يواجه إعصار المونسون الهائج في عرض المحيط الهندي، مستعيناً بالأسطرلاب الفلكي لتوجيه السفينة نحو النجاة وتدوين غرائب الأسفار.',
-    defaultConceptEn: 'Ibn Battuta navigates a treacherous monsoon tempest across the Indian Ocean using celestial astrolabes to save the crew.',
-    suggestedHeroRoleAr: 'شمس الدين ابن بطوطة - رحالة ومستكشف ومؤرخ حكيم بالجلباب المغربي والأسطرلاب',
-    suggestedHeroRoleEn: 'Ibn Battuta - observant Moroccan voyager in traditional travel robes with celestial astrolabe',
-    recommendedStyle: 'IMAX Ultra-Realism 8K',
-    acts: {
-      act1TitleAr: 'البداية: توديع طنجة وركوب سفن الموانئ الشرقية',
-      act1TitleEn: 'Act I: Farewell to Tangier & Sailing East',
-      act1DescriptionAr: 'وداع شواطئ المغرب وحيداً والانطلاق نحو موانئ البحر الأحمر وتجهيز المراكب الشراعية للشرق.',
-      act1DescriptionEn: 'Departing solitary from Tangier, journeying through ancient Mediterranean ports to board a massive Arabian trading dhow.',
-      act2TitleAr: 'الوسط: إعصار المونسون وتكسر الصواري في بحر الهند',
-      act2TitleEn: 'Act II: The Great Indian Ocean Tempest',
-      act2DescriptionAr: 'أمواج عملاقة تبتلع مقدمة السفينة في سواد الليل، وابن بطوطة يثبت ببوصلته ويرشد الربان نحو ممر المرجان.',
-      act2DescriptionEn: 'A colossal monsoon hurricane shatters rigging; Ibn Battuta uses astronomical navigation instruments to calculate reef escape vectors.',
-      act3TitleAr: 'الذروة: شروق النجاة وتدوين عجائب الأسفار',
-      act3TitleEn: 'Act III: Dawn Over Emerald Lagoons & The Chronicle',
-      act3DescriptionAr: 'انبثاق شمس الصباح على مياه فيروزية هادئة وجزر نخيل خضراء، وجلوس ابن بطوطة يسطر بمداده صفحات كتابه الخالد.',
-      act3DescriptionEn: 'Morning light reveals a tranquil tropical atoll; Ibn Battuta dips his reed pen to record the miraculous survival.'
-    }
-  },
-  {
-    id: 'template-sinbad-voyages',
-    genre: 'فانتازيا وأساطير',
-    nameAr: 'أسطورة سندباد البحري',
-    nameEn: 'Legend of Sinbad the Sailor',
-    icon: '🐋',
-    taglineAr: 'مغامرات ألف ليلة وليلة، الرسو على جزيرة خضراء تتبين أنها ظهر حوت عملاق يستيقظ من سباته',
-    taglineEn: 'Arabian Nights oceanic lore, stepping ashore a green haven that reveals itself as an awakening leviathan',
-    defaultConceptAr: 'السندباد وطاقمه يرسون على جزيرة خضراء هادئة في المحيط، وعندما يوقدون النار تهتز الأرض ليكتشفوا أنها ظهر حوت بحري عملاق يغوص بهم للأعماق.',
-    defaultConceptEn: 'Sinbad and sailors make camp on an idyllic green islet, which shudders and submerges as a gargantuan sea monster.',
-    suggestedHeroRoleAr: 'السندباد البحري - ربان بغدادي خبير وبحار جسور بالعمامة البحرية البيضاء',
-    suggestedHeroRoleEn: 'Sinbad the Sailor - seasoned Baghdadi navigator facing mythical oceanic behemoths',
-    recommendedStyle: 'IMAX Ultra-Realism 8K',
-    acts: {
-      act1TitleAr: 'البداية: الرسو على الواحة البحرية الساحرة',
-      act1TitleEn: 'Act I: The Deceptive Green Sanctuary',
-      act1DescriptionAr: 'اقتراب سفينة السندباد من رقعة خضراء تطفو فوق المياه الفيروزية الصافية، وهبوط البحارة للاحتفال.',
-      act1DescriptionEn: 'The ship anchors beside a lush emerald mound in calm waters; delighted crew members row ashore to kindle cooking fires.',
-      act2TitleAr: 'الوسط: اهتزاز الأرض وصحوة الوحش البحري',
-      act2TitleEn: 'Act II: The Ground Trembles & Steam Erupts',
-      act2DescriptionAr: 'تصدع تربة الجزيرة، اشتعال النيران يوقظ جلد الكائن الضخم، واندفاع نافورة ماء وبخار عملاقة تقلب القدور وسط ذعر الطاقم.',
-      act2DescriptionEn: 'Cracks open beneath the camp; steam geysers erupt as heat penetrates the beast’s skin, causing massive tremors and panic.',
-      act3TitleAr: 'الذروة: الغرق العظيم والنجاة بالألواح الخشبية',
-      act3TitleEn: 'Act III: The Descent of the Colossus',
-      act3DescriptionAr: 'انحدار الجزيرة بأكملها في عمق المحيط صانعة دوامة هائلة، وقفز السندباد متشبثاً ببرميل خشبي ناجياً نحو أفق جديد.',
-      act3DescriptionEn: 'The titan whale submerges into deep blue ocean creating a swirling vortex; Sinbad grabs a floating timber plank surviving the abyss.'
-    }
   }
 ];
 
@@ -443,47 +288,23 @@ const VIDEO_AI_MODELS = [
   { id: 'minimax', name: 'Hailuo Minimax', desc: 'تعبيرات وجه حية وحركة شخصيات انسيابية' }
 ];
 
-// Quick Story Ideas for inspiration (historical legends & speculative concepts)
+// Quick Story Ideas for inspiration
 const STORY_INSPIRATION_IDEAS = [
-  {
-    ar: 'عنترة بن شداد يمتطي جواده "الأدهم" بمفرده ليخترق حصار غارة مباغتة لإنقاذ عبلة والذود عن مضارب قبيلته.',
-    en: 'Antarah ibn Shaddad charges solo on his black stallion Al-Adham to pierce an enemy siege and defend his tribe.'
-  },
-  {
-    ar: 'زرقاء اليمامة تقف على برج الحصن العالي وترى شجراً يسير في الأفق البعيد لتنذر قومها من جيش حسان بن تُبّع المتخفي.',
-    en: 'Zarqa al-Yamama stands on her high tower witnessing a walking forest concealing an invading army across the horizon.'
-  },
-  {
-    ar: 'زنوبيا ملكة تدمر تعتلي جوادها الأبيض في ساحة الأعمدة التاريخية لتقود فرسان الشرق في ملحمة صمود ضد فيالق روما.',
-    en: 'Queen Zenobia of Palmyra rides her white stallion through the Great Colonnade, rallying desert cataphracts against Rome.'
-  },
-  {
-    ar: 'السندباد البحري وطاقمه يرسون على جزيرة خضراء هادئة في المحيط، ليكتشفوا برعب أنها ظهر حوت بحري عملاق يستيقظ.',
-    en: 'Sinbad and his sailors anchor on an idyllic green island, only to discover with dread it is an awakening titan whale.'
-  },
-  {
-    ar: 'صقر قريش عبد الرحمن الداخل يسبح عبر الفرات الهادر ناجياً من مطارديه ليقطع آلاف الأميال ويؤسس مجد قرطبة.',
-    en: 'The Falcon of Quraysh swims the freezing Euphrates, surviving a pursuit to cross the desert and found golden Córdoba.'
-  },
-  {
-    ar: 'حاتم الطائي يذبح فرسه الوحيد في ليلة صقيع ثلجية لإطعام أطفال ضيف غريب تضوروا جوعاً، مجسداً أسمى معاني الإيثار.',
-    en: 'Hatim al-Tai slaughters his prized lone stallion in a freezing blizzard to feed a freezing guest’s starving children.'
-  },
-  {
-    ar: 'سيف بن ذي يزن يتسلق قمم السحاب بحثاً عن عش طائر الرخ الخرافي لاسترداد سيف الأجداد المسحور وتحرير أرضه.',
-    en: 'Sayf ibn Dhi Yazan scales cloud-piercing peaks into the aerie of the giant Roc bird to reclaim the enchanted ancestral blade.'
-  },
-  {
-    ar: 'قيس بن الملوح (مجنون ليلى) يهيم في أودية نجد بين الغزلان البرية وصخور الكثبان ينحت أشعاره الخالدة في مهب الرياح.',
-    en: 'Qays (Majnun Layla) wanders the dunes of Najd among wild gazelles, carving immortal poetry into sandstone crags.'
-  },
-  {
-    ar: 'بلقيس ملكة سبأ تسير في الصرح الممرّد من قوارير وتحسبه لجة، مبرهنة أن الحكمة السياسية أسمى من إشعال الحروب.',
-    en: 'Queen Bilqis walks upon the transparent crystal glass floor over living waters, proving diplomatic wisdom over war.'
-  },
   {
     ar: 'مهندس اتصالات عربي يكتشف في صحراء الربع الخالي برجا قديما يصدر نبضات لاسلكية غامضة تقود لمدينة مدفونة تحت الرمال.',
     en: 'An Arab telecom engineer in the Empty Quarter detects anomalous radio signals from a buried pre-ancient desert monolith.'
+  },
+  {
+    ar: 'محقق في مدينة سايبربانك ممطرة يطارد ذاكرة مسروقة تكشف مؤامرة لتبديل وعي سكان العاصمة بواسطة الذكاء الاصطناعي.',
+    en: 'A neon-city detective tracks an illegal cybernetic memory chip that uncovers a conspiracy to overwrite human consciousness.'
+  },
+  {
+    ar: 'طبيبة فضاء منعزلة في محطة مدارية تواجه عطلا ميكانيكيا يهدد بدخول المركبة للغلاف الجوي للأرض مع فرصة نجاة واحدة.',
+    en: 'A lone orbital medical officer faces systemic hull breach while de-orbiting Earth, executing a perilous manual EVA thruster sequence.'
+  },
+  {
+    ar: 'فارس أندلسي مخضرم يحاول إنقاذ مكتبة قرطبة الأثرية ونقل المخطوطات النادرة عبر الجبال الوعرة في ليلة عاصفة.',
+    en: 'A veteran Andalusian scholar-knight undertakes a daring midnight evacuation of irreplaceable ancient manuscripts across rugged mountain passes.'
   }
 ];
 
@@ -758,16 +579,6 @@ export interface ManualSceneItem {
   cameraMotion: string;
 }
 
-export interface DialogueContextSuggestion {
-  type: string;
-  styleLabelAr: string;
-  styleLabelEn: string;
-  dialogueAr: string;
-  dialogueEn: string;
-  emotionAr: string;
-  subtextReasonAr: string;
-}
-
 export const DEFAULT_MANUAL_SCENES: ManualSceneItem[] = [
   {
     id: 'mscene_1',
@@ -888,7 +699,6 @@ export default function CinemaMovieStudio({
 
   // Saved Projects Manager Drawer / Modal
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
-  const [savedDrawerTab, setSavedDrawerTab] = useState<'my_projects' | 'legends'>('my_projects');
   const [savedProjects, setSavedProjects] = useState<MovieProject[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const [savedSearchQuery, setSavedSearchQuery] = useState('');
@@ -907,15 +717,6 @@ export default function CinemaMovieStudio({
   // Screenplay Export Modal (Text / PDF / Markdown)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  // Story-to-Screenplay Generator Diagnostic Tester Modal
-  const [isTesterModalOpen, setIsTesterModalOpen] = useState(false);
-
-  // Arabic Historical Legends & Screenplays Library Modal
-  const [isLegendsModalOpen, setIsLegendsModalOpen] = useState(false);
-
-  // Author & Add Scene Modal (Manual or AI Co-Director)
-  const [isAddSceneModalOpen, setIsAddSceneModalOpen] = useState(false);
-
   // Share Sequence states
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
@@ -923,16 +724,6 @@ export default function CinemaMovieStudio({
   const [sharedBannerInfo, setSharedBannerInfo] = useState<{
     authorName?: string;
     title: string;
-  } | null>(null);
-
-  // Contextual Dialogue Suggestions State
-  const [contextSuggestionsTarget, setContextSuggestionsTarget] = useState<string | null>(null);
-  const [isFetchingContextSuggestions, setIsFetchingContextSuggestions] = useState<boolean>(false);
-  const [contextSuggestionsData, setContextSuggestionsData] = useState<{
-    targetId: string;
-    original: string;
-    sceneNatureSummary: string;
-    suggestions: DialogueContextSuggestion[];
   } | null>(null);
 
   // Auto-save manual screenplay draft to LocalStorage with debouncing
@@ -1096,20 +887,6 @@ export default function CinemaMovieStudio({
       (p.genre && p.genre.toLowerCase().includes(q))
     );
   }, [savedProjects, savedSearchQuery]);
-
-  // Filtered Arabic historical legends for drawer or quick browsing
-  const filteredLegends = useMemo(() => {
-    if (!savedSearchQuery.trim()) return ARABIC_HISTORICAL_LEGENDS;
-    const q = savedSearchQuery.toLowerCase();
-    return ARABIC_HISTORICAL_LEGENDS.filter(l =>
-      l.titleAr.toLowerCase().includes(q) ||
-      l.titleEn.toLowerCase().includes(q) ||
-      l.conceptAr.toLowerCase().includes(q) ||
-      l.hero.name.toLowerCase().includes(q) ||
-      l.genreAr.toLowerCase().includes(q) ||
-      (l.taglineAr && l.taglineAr.toLowerCase().includes(q))
-    );
-  }, [savedSearchQuery]);
 
   // Load saved projects on mount & auth change
   const loadSavedProjects = useCallback(async () => {
@@ -1294,72 +1071,6 @@ export default function CinemaMovieStudio({
         ? `🎬 تم استئناف المشروع: "${project.titleAr}" جاهز للعمل والتطوير.`
         : `🎬 Loaded project: "${project.titleEn || project.titleAr}" ready to continue.`
     );
-  };
-
-  // Apply a historical legend to the AI generation form
-  const handleApplyLegendToAiForm = (legend: HistoricalLegendScreenplay) => {
-    setConcept(legend.conceptAr);
-    setGenre(legend.genreAr);
-    setVisualStyle(legend.recommendedStyleEn);
-    setCharacterName(legend.hero.name);
-    setCharacterGender(legend.hero.gender);
-    setCharacterAge(legend.hero.age);
-    setCharacterFeature(legend.hero.featuresAr);
-    setActStructure({ ...legend.acts });
-    setShowActControls(true);
-    setCustomDialogueInput(`${legend.famousDialogue.speaker}: ${legend.famousDialogue.textAr}`);
-    setCreationMode('ai');
-    showToast(lang === 'ar' ? `✓ تم تطبيق سيناريو (${legend.titleAr}) في مولد القصة!` : `✓ Applied ${legend.titleEn} to generator!`);
-  };
-
-  // Instant load of the historical legend as a full 10s multi-scene active project
-  const handleLoadLegendAsActiveProject = async (legend: HistoricalLegendScreenplay) => {
-    const project = convertLegendToMovieProject(legend);
-    setActiveProject(project);
-    setConcept(legend.conceptAr);
-    setGenre(legend.genreAr);
-    setVisualStyle(legend.recommendedStyleEn);
-    setProjectTitleInput(project.titleAr);
-    await handleSaveCurrentProject(project, true);
-    showToast(lang === 'ar' ? `✓ تم تحميل سيناريو (${legend.titleAr}) بنجاح إلى الاستوديو!` : `✓ Loaded ${legend.titleEn} into studio!`);
-  };
-
-  // Switch between branching path decisions and recalculate scene prompts dynamically
-  const handleSelectStoryPath = async (pathId: string) => {
-    if (!activeProject) return;
-    const updated = applyStoryPathToMovieProject(activeProject, pathId);
-    setActiveProject(updated);
-    await handleSaveCurrentProject(updated, false);
-    const chosen = updated.availablePaths?.find(p => p.id === pathId);
-    showToast(
-      lang === 'ar'
-        ? `🧭 تم تفعيل مسار "${chosen?.nameAr || pathId}" وتحديث برومبتات المشاهد ونصوص السيناريو فورياً!`
-        : `🧭 Activated path "${chosen?.nameEn || pathId}" and updated prompts dynamically!`
-    );
-  };
-
-  // Load the historical legend into manual scene-by-scene editor
-  const handleApplyLegendToManualMode = (legend: HistoricalLegendScreenplay) => {
-    setCreationMode('manual');
-    setManualTitle(legend.titleAr);
-    setManualConcept(legend.conceptAr);
-    setCharacterName(legend.hero.name);
-    setCharacterGender(legend.hero.gender);
-    setCharacterAge(legend.hero.age);
-    setCharacterFeature(legend.hero.featuresAr);
-    setVisualStyle(legend.recommendedStyleEn);
-    setManualScenes(legend.readyScenes.map((sc, idx) => ({
-      id: `manual_sc_${Date.now()}_${idx}`,
-      titleAr: sc.titleAr,
-      screenplayBeatAr: sc.dramaticActionAr || sc.screenplayBeatAr || '',
-      dialogueSpeaker: sc.dialogueSpeaker || legend.hero.name,
-      dialogueAr: sc.dialogueAr || '',
-      dialogueEmotion: sc.dialogueEmotion || '',
-      dialogueTiming: sc.dialogueTiming || '00:03 - 00:08',
-      shotType: sc.shotType,
-      cameraMotion: sc.cameraMotion
-    })));
-    showToast(lang === 'ar' ? `✓ تم فتح مشاهد (${legend.titleAr}) في المحرر اليدوي!` : `✓ Opened ${legend.titleEn} in manual editor!`);
   };
 
   // Select and apply a ready screenplay template
@@ -1778,190 +1489,6 @@ export default function CinemaMovieStudio({
     }
   };
 
-  // Fetch contextual dialogue suggestions & alternative phrasings based on scene nature
-  const handleFetchDialogueContextSuggestions = async (
-    targetId: string,
-    currentDialogue: string,
-    sceneContext: {
-      sceneTitle?: string;
-      sceneBeat?: string;
-      speakerName?: string;
-      dialogueEmotion?: string;
-      genre?: string;
-      actPhase?: string;
-      concept?: string;
-    }
-  ) => {
-    setContextSuggestionsTarget(targetId);
-    setIsFetchingContextSuggestions(true);
-    try {
-      const response = await fetch('/api/cinema-suggest-dialogue-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentDialogue,
-          sceneContext: {
-            sceneTitle: sceneContext.sceneTitle || '',
-            sceneBeat: sceneContext.sceneBeat || '',
-            speakerName: sceneContext.speakerName || characterName || 'البطل',
-            dialogueEmotion: sceneContext.dialogueEmotion || '',
-            genre: sceneContext.genre || genre || activeProject?.genre || 'دراما وإثارة',
-            actPhase: sceneContext.actPhase || 'act1',
-            concept: sceneContext.concept || manualConcept || concept || activeProject?.concept || ''
-          }
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch contextual dialogue suggestions');
-      const data = await response.json();
-      if (data.suggestions && data.suggestions.length > 0) {
-        setContextSuggestionsData({
-          targetId,
-          original: currentDialogue,
-          sceneNatureSummary: data.sceneNatureSummary || '',
-          suggestions: data.suggestions
-        });
-        showToast(lang === 'ar' ? '✨ تم استخراج اقتراحات السياق والصيغ البديلة!' : '✨ Contextual dialogue suggestions generated!');
-      }
-    } catch (err) {
-      console.warn('Error fetching dialogue context suggestions:', err);
-      showToast(lang === 'ar' ? 'تعذر جلب اقتراحات السياق.' : 'Could not fetch context suggestions.', true);
-    } finally {
-      setIsFetchingContextSuggestions(false);
-    }
-  };
-
-  // Apply chosen contextual suggestion to target
-  const handleApplyContextSuggestion = (targetId: string, suggestion: DialogueContextSuggestion) => {
-    if (targetId.startsWith('scene_card_') && activeProject) {
-      const idx = parseInt(targetId.replace('scene_card_', ''), 10);
-      const targetScene = activeProject.scenes[idx];
-      if (targetScene) {
-        const refinedScene = refineSceneWithLocalAi(
-          targetScene,
-          suggestion.dialogueAr,
-          {
-            newDialogueEn: suggestion.dialogueEn,
-            newEmotion: suggestion.emotionAr,
-            characterAnchor: activeProject.characterAnchor,
-            visualStyle: activeProject.visualStyle,
-            targetAiModel: activeProject.targetAiModel
-          }
-        );
-        const updatedScenes = [...activeProject.scenes];
-        updatedScenes[idx] = refinedScene;
-        const updatedProject: MovieProject = {
-          ...activeProject,
-          scenes: updatedScenes,
-          updatedAt: new Date().toISOString()
-        };
-        setActiveProject(updatedProject);
-        handleSaveCurrentProject(updatedProject);
-        setContextSuggestionsData(null);
-        showToast(
-          lang === 'ar' 
-            ? `✓ تم تطبيق صيغة (${suggestion.styleLabelAr}) وإعادة تصميم المشهد والبرومبت محلياً!` 
-            : `✓ Applied ${suggestion.styleLabelEn} & refined scene with local AI!`
-        );
-      }
-    } else if (targetId === 'modal' && editingScene) {
-      setEditingScene({
-        ...editingScene,
-        scene: {
-          ...editingScene.scene,
-          dialogueAr: suggestion.dialogueAr,
-          dialogueEn: suggestion.dialogueEn || editingScene.scene.dialogueEn,
-          dialogueEmotion: suggestion.emotionAr || editingScene.scene.dialogueEmotion
-        }
-      });
-      showToast(lang === 'ar' ? `✓ تم تطبيق صيغة (${suggestion.styleLabelAr}) بنجاح!` : `✓ Applied ${suggestion.styleLabelEn}!`);
-    } else if (targetId === 'custom_input') {
-      setCustomDialogueInput(suggestion.dialogueAr);
-      showToast(lang === 'ar' ? `✓ تم تطبيق صيغة (${suggestion.styleLabelAr}) في الحوار المسبق!` : `✓ Applied dialogue!`);
-    } else {
-      // Manual Scene by id
-      setManualScenes(prev => prev.map(sc => {
-        if (sc.id === targetId) {
-          return {
-            ...sc,
-            dialogueAr: suggestion.dialogueAr,
-            dialogueEmotion: suggestion.emotionAr || sc.dialogueEmotion
-          };
-        }
-        return sc;
-      }));
-      showToast(lang === 'ar' ? `✓ تم تطبيق صيغة (${suggestion.styleLabelAr}) في المشهد!` : `✓ Applied ${suggestion.styleLabelEn}!`);
-    }
-  };
-
-  // Direct interactive dialogue change in scene card with local AI re-engineering
-  const handleInlineSceneDialogueChange = (sceneIdx: number, newText: string) => {
-    if (!activeProject || !activeProject.scenes[sceneIdx]) return;
-    const targetScene = activeProject.scenes[sceneIdx];
-    const refinedScene = refineSceneWithLocalAi(
-      targetScene,
-      newText,
-      {
-        characterAnchor: activeProject.characterAnchor,
-        visualStyle: activeProject.visualStyle,
-        targetAiModel: activeProject.targetAiModel
-      }
-    );
-    const updatedScenes = [...activeProject.scenes];
-    updatedScenes[sceneIdx] = refinedScene;
-    const updatedProject: MovieProject = {
-      ...activeProject,
-      scenes: updatedScenes,
-      updatedAt: new Date().toISOString()
-    };
-    setActiveProject(updatedProject);
-    handleSaveCurrentProject(updatedProject);
-  };
-
-  // Trigger contextual smart suggestions powered by Local AI & server
-  const handleOpenSmartDialogueSuggestions = (idx: number, scene: CinemaScene) => {
-    const targetId = `scene_card_${idx}`;
-    if (contextSuggestionsData && contextSuggestionsData.targetId === targetId) {
-      setContextSuggestionsData(null);
-      return;
-    }
-
-    // Instantly populate with local AI stylist for zero latency
-    const localSuggestions = generateLocalDialogueSuggestions(
-      scene.dialogueAr || '',
-      {
-        sceneBeat: scene.screenplayBeatAr || scene.dramaticActionAr,
-        sceneTitle: scene.titleAr,
-        speakerName: scene.dialogueSpeaker || activeProject?.characterAnchor?.name || 'البطل',
-        genre: activeProject?.genre,
-        actPhase: scene.actPhase,
-        concept: activeProject?.concept
-      }
-    );
-
-    setContextSuggestionsData({
-      targetId,
-      original: scene.dialogueAr || '',
-      sceneNatureSummary: `${scene.titleAr} (${lang === 'ar' ? 'المشهد ' + (idx + 1) : 'Scene ' + (idx + 1)})`,
-      suggestions: localSuggestions
-    });
-
-    // Also fetch contextual refinements from backend if online
-    handleFetchDialogueContextSuggestions(
-      targetId,
-      scene.dialogueAr || '',
-      {
-        sceneTitle: scene.titleAr,
-        sceneBeat: scene.screenplayBeatAr || scene.dramaticActionAr,
-        speakerName: scene.dialogueSpeaker || activeProject?.characterAnchor?.name || 'البطل',
-        dialogueEmotion: scene.dialogueEmotion,
-        genre: activeProject?.genre,
-        actPhase: scene.actPhase,
-        concept: activeProject?.concept
-      }
-    );
-  };
-
   // Copy screenplay narrative action beat only
   const handleCopyAction = (actionText: string, index: number) => {
     if (!actionText) return;
@@ -2263,15 +1790,55 @@ export default function CinemaMovieStudio({
     }
   };
 
-  // Open Add Scene Authoring Modal (Manual Screenplay & Spoken Dialogue or AI Co-Director)
+  // Add a new 10-second scene to the project
   const handleAddNewScene = () => {
     if (!activeProject) return;
-    setIsAddSceneModalOpen(true);
-  };
+    const newIdx = activeProject.scenes.length;
+    const startSec = newIdx * 10;
+    const endSec = (newIdx + 1) * 10;
+    const startMinStr = String(Math.floor(startSec / 60)).padStart(2, '0');
+    const startSecStr = String(startSec % 60).padStart(2, '0');
+    const endMinStr = String(Math.floor(endSec / 60)).padStart(2, '0');
+    const endSecStr = String(endSec % 60).padStart(2, '0');
+    const timeRange = `${startMinStr}:${startSecStr} - ${endMinStr}:${endSecStr}`;
 
-  // Confirm and insert newly authored scene into timeline
-  const handleConfirmAddScene = (newScene: CinemaScene) => {
-    if (!activeProject) return;
+    const anchorToken = activeProject.characterAnchor?.consistencyPromptToken || '';
+    const heroName = activeProject.characterAnchor?.name || 'Hero';
+    const arabicOrdinal = getArabicOrdinal(newIdx + 1);
+    const englishOrdinal = getEnglishOrdinal(newIdx + 1);
+    const screenplaySlug = `${arabicOrdinal}: داخلي/خارجي - لقطة سينمائية [${timeRange}]`;
+    const screenplayBeatAr = `يتحرك ${heroName} بحذر وتركيز شديد متفاعلاً مع التطورات المتسارعة في محيطه، ومراقباً بدقة مجريات الموقف الحاسم في هذا المشهد.`;
+    const screenplayBeatEn = `${heroName} moves with calculated caution, scanning the unfolding cinematic environment under dynamic atmospheric lighting.`;
+    const dialogueAr = 'علينا أن نتحرك الآن قبل فوات الأوان!';
+    const dialogueEn = 'We must make our move now before it is too late!';
+    const dialogueSpeaker = heroName;
+    const dialogueEmotion = 'نبرة حازمة ومتوترة';
+    const dialogueTiming = `${startMinStr}:${String(startSec + 3).padStart(2, '0')} - ${endMinStr}:${String(endSec - 2).padStart(2, '0')}`;
+
+    const rawPrompt = `${anchorToken} [CAMERA & SHOT]: Medium Cinematic Shot (${timeRange}), slow dolly in (10s), motion intensity 5/10. [SCREENPLAY ACTION]: ${screenplayBeatEn} [CHARACTER SPOKEN DIALOGUE & LIP-SYNC]: ${heroName} speaks (${dialogueEmotion}) at ${dialogueTiming}: "${dialogueAr}" ("${dialogueEn}"), authentic facial micro-expressions, perfectly synchronized natural lip-sync movements. [CINEMATOGRAPHY]: ${activeProject.visualStyle}, photorealistic 8k, volumetric atmosphere. [SOUND DESIGN]: Subtle cinematic suspense, crisp vocal resonance.`;
+
+    const newScene: CinemaScene = {
+      sceneNumber: newIdx + 1,
+      timeRange,
+      durationSeconds: 10,
+      titleAr: `${arabicOrdinal}: تصاعد الحدث`,
+      titleEn: `${englishOrdinal}: Action Escalation`,
+      screenplaySlug,
+      screenplayBeatAr,
+      screenplayBeatEn,
+      dialogueSpeaker,
+      dialogueEmotion,
+      dialogueTiming,
+      dialogueAr,
+      dialogueEn,
+      shotType: "Medium Cinematic Shot",
+      cameraMotion: "Slow Dolly In (10s)",
+      dramaticActionAr: screenplayBeatAr,
+      videoPromptEn: appendSiteUrlToPrompt(rawPrompt),
+      motionIntensity: 5,
+      soundDesign: "Cinematic atmospheric drone, crisp dialogue resonance"
+    };
+
     const updatedScenes = [...activeProject.scenes, newScene];
     const updatedProject: MovieProject = {
       ...activeProject,
@@ -2281,11 +1848,10 @@ export default function CinemaMovieStudio({
     };
 
     handleSaveCurrentProject(updatedProject);
-    const arabicOrdinal = getArabicOrdinal(newScene.sceneNumber);
     showToast(
       lang === 'ar' 
-        ? `✓ تمت إضافة ${arabicOrdinal} إلى تسلسل الفيلم بنجاح (10s مع السيناريو والحوار المصمم)!` 
-        : `✓ Added scene #${newScene.sceneNumber} to movie timeline successfully (10s)!`
+        ? `✓ تمت إضافة ${arabicOrdinal} بنجاح (10 ثوانٍ مع السيناريو والحوار)!` 
+        : `✓ Added ${englishOrdinal} successfully (10s with screenplay & dialogue)!`
     );
   };
 
@@ -2573,134 +2139,6 @@ export default function CinemaMovieStudio({
     showToast(lang === 'ar' ? 'تم فتح وضع كتابة السيناريو والحوار يدوياً.' : 'Switched to Manual Screenplay & Dialogue Mode.');
   };
 
-  // Render Contextual Dialogue Suggestions Panel
-  const renderContextSuggestionsPanel = (targetId: string, onApply: (sug: DialogueContextSuggestion) => void) => {
-    if (!contextSuggestionsData || contextSuggestionsData.targetId !== targetId) return null;
-    const { suggestions, sceneNatureSummary, original } = contextSuggestionsData;
-
-    return (
-      <div className="mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-b from-amber-500/10 via-amber-50/60 to-stone-50 border border-amber-300/80 space-y-3 shadow-md animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between border-b border-amber-200/70 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-[#c29b40] text-stone-950 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 stroke-[2.5]" />
-            </div>
-            <div>
-              <span className="text-xs font-black text-stone-900 block">
-                {lang === 'ar' ? 'اقتراحات السياق والصيغ البديلة للجملة' : 'Contextual Suggestions & Alternatives'}
-              </span>
-              <span className="text-[10px] text-stone-500 font-medium">
-                {lang === 'ar' ? 'مصاغة بالذكاء الاصطناعي وفق طبيعة هذا المشهد وحركته' : 'Tailored by AI to match this specific scene nature'}
-              </span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setContextSuggestionsData(null)}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 transition-all cursor-pointer"
-            title={lang === 'ar' ? 'إغلاق الاقتراحات' : 'Close'}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {sceneNatureSummary && (
-          <div className="text-[11px] font-medium text-stone-700 bg-white/90 p-2.5 rounded-xl border border-stone-200/80 flex items-start gap-2 shadow-2xs">
-            <Info className="w-4 h-4 text-[#c29b40] shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <span className="font-bold text-stone-900">{lang === 'ar' ? 'سياق وطبيعة المشهد: ' : 'Scene Nature: '}</span>
-              <span>{sceneNatureSummary}</span>
-            </div>
-          </div>
-        )}
-
-        {original && (
-          <div className="text-[11px] text-stone-500 flex items-center gap-1.5 px-1">
-            <span className="font-bold text-stone-600">{lang === 'ar' ? 'الجملة الأصلية الحالية:' : 'Original:'}</span>
-            <span className="italic line-through truncate max-w-xs">{original}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-          {suggestions.map((sug, sIdx) => {
-            let badgeStyle = 'bg-rose-100 text-rose-950 border-rose-300';
-            let badgeIcon = '⚔️';
-            if (sug.type === 'subtext') {
-              badgeStyle = 'bg-sky-100 text-sky-950 border-sky-300';
-              badgeIcon = '🎭';
-            } else if (sug.type === 'punchy') {
-              badgeStyle = 'bg-emerald-100 text-emerald-950 border-emerald-300';
-              badgeIcon = '⏱️';
-            } else if (sug.type === 'emotional') {
-              badgeStyle = 'bg-purple-100 text-purple-950 border-purple-300';
-              badgeIcon = '🌊';
-            }
-
-            return (
-              <div
-                key={sIdx}
-                className="p-3 rounded-xl bg-white border border-stone-200 hover:border-[#c29b40] transition-all space-y-2 shadow-2xs flex flex-col justify-between group"
-              >
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${badgeStyle}`}>
-                      <span>{badgeIcon}</span>
-                      <span>{lang === 'ar' ? sug.styleLabelAr : sug.styleLabelEn}</span>
-                    </span>
-
-                    <span className="text-[10px] text-stone-500 font-mono italic truncate max-w-[120px]">
-                      {sug.emotionAr}
-                    </span>
-                  </div>
-
-                  <div className="text-xs font-bold text-stone-900 leading-relaxed font-serif bg-amber-50/50 p-2.5 rounded-lg border border-amber-200/50">
-                    "{sug.dialogueAr}"
-                  </div>
-
-                  {sug.dialogueEn && (
-                    <div className="text-[10px] text-stone-500 italic px-1 font-mono">
-                      "{sug.dialogueEn}"
-                    </div>
-                  )}
-
-                  {sug.subtextReasonAr && (
-                    <p className="text-[10px] text-stone-600 leading-relaxed pt-1 border-t border-stone-100">
-                      <span className="font-bold text-stone-800">{lang === 'ar' ? 'سبب الملاءمة: ' : 'Fit: '}</span>
-                      {sug.subtextReasonAr}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-stone-100 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(sug.dialogueAr);
-                      showToast(lang === 'ar' ? 'تم نسخ الجملة.' : 'Copied.');
-                    }}
-                    className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-all cursor-pointer"
-                    title={lang === 'ar' ? 'نسخ الجملة' : 'Copy'}
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onApply(sug)}
-                    className="px-3 py-1.5 rounded-lg bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-[1.02]"
-                  >
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>{lang === 'ar' ? 'تطبيق هذه الصيغة' : 'Apply'}</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div id="cinema-studio-workspace" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 font-sans">
       
@@ -2741,32 +2179,6 @@ export default function CinemaMovieStudio({
               <span>{lang === 'ar' ? 'مشاريعي المحفوظة' : 'Saved Projects'}</span>
               <span className="bg-[#c29b40] text-stone-950 text-[10px] font-mono font-black px-1.5 py-0.5 rounded-full">
                 {savedProjects.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsTesterModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-[#c29b40] text-[#f5d996] hover:text-stone-950 text-xs font-bold transition-all flex items-center gap-2 border border-[#c29b40]/50 shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              title={lang === 'ar' ? 'تشغيل مختبر واختبار مولد السيناريوهات من القصة' : 'Test Story-to-Screenplay Generator'}
-            >
-              <FlaskConical className="w-4 h-4 text-[#c29b40]" />
-              <span>{lang === 'ar' ? 'اختبار مُولد السيناريوهات' : 'Screenplay Generator Tester'}</span>
-              <span className="bg-[#c29b40] text-stone-950 text-[9px] font-black px-1.5 py-0.2 rounded-md">
-                TEST LAB
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsLegendsModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-amber-600/20 hover:bg-[#c29b40] text-[#f5d996] hover:text-stone-950 text-xs font-bold transition-all flex items-center gap-2 border border-[#c29b40]/50 shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              title={lang === 'ar' ? 'تصفح سيناريوهات وقصص أساطير تاريخية عربية شهيرة' : 'Browse Arabic Historical & Mythological Screenplays'}
-            >
-              <BookOpen className="w-4 h-4 text-[#c29b40]" />
-              <span>{lang === 'ar' ? 'أساطير وسيناريوهات تاريخية' : 'Historical Legends'}</span>
-              <span className="bg-[#c29b40] text-stone-950 text-[9px] font-black px-1.5 py-0.2 rounded-md font-mono">
-                {ARABIC_HISTORICAL_LEGENDS.length}
               </span>
             </button>
 
@@ -2944,102 +2356,6 @@ export default function CinemaMovieStudio({
 
           {creationMode === 'ai' ? (
             <form onSubmit={handleGenerateStory} className="space-y-5">
-            {/* Arabic Historical Stories & Legends Screenplays Showcase */}
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-amber-500/15 via-amber-50/50 to-stone-50 border border-[#c29b40]/40 space-y-3 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#c29b40] text-stone-950 flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                    📜
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-stone-900">
-                        {lang === 'ar' ? 'سيناريوهات وأساطير عربية وتاريخية' : 'Arabic Historical & Myth Screenplays'}
-                      </span>
-                      <span className="bg-[#c29b40] text-stone-950 text-[9px] font-mono font-black px-1.5 py-0.2 rounded-md">
-                        {ARABIC_HISTORICAL_LEGENDS.length} {lang === 'ar' ? 'جاهزة' : 'Ready'}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-stone-600 block">
-                      {lang === 'ar' ? 'أساطير وملاحم التراث: سيف بن ذي يزن، رحلات ابن بطوطة، أسطورة سندباد، عنترة بن شداد...' : 'Epic screenplays from Arab heritage: Sayf ibn Dhi Yazan, Ibn Battuta, Sinbad, Antarah...'}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsLegendsModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-black text-[#f5d996] text-[11px] font-bold transition-all flex items-center gap-1.5 border border-[#c29b40]/50 shadow-xs cursor-pointer hover:scale-[1.02] self-end sm:self-auto shrink-0"
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-[#c29b40]" />
-                  <span>{lang === 'ar' ? 'تصفح المكتبة بالكامل' : 'Browse All Legends'}</span>
-                </button>
-              </div>
-
-              {/* Horizontal Scrollable Quick Chips (Prioritizing Sayf, Ibn Battuta & Sinbad) */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
-                {[...ARABIC_HISTORICAL_LEGENDS].sort((a, b) => {
-                  const priority = ['legend-sayf-roc', 'legend-ibn-battuta', 'legend-sinbad-whale'];
-                  const aIdx = priority.indexOf(a.id);
-                  const bIdx = priority.indexOf(b.id);
-                  if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-                  if (aIdx !== -1) return -1;
-                  if (bIdx !== -1) return 1;
-                  return 0;
-                }).map((legend) => {
-                  const isKey = ['legend-sayf-roc', 'legend-ibn-battuta', 'legend-sinbad-whale'].includes(legend.id);
-                  return (
-                    <div
-                      key={legend.id}
-                      className={`p-2 rounded-xl border transition-all text-start shrink-0 flex items-center gap-2 shadow-2xs group ${
-                        isKey 
-                          ? 'bg-amber-50/90 hover:bg-amber-100/80 border-amber-300 hover:border-[#c29b40]'
-                          : 'bg-white hover:bg-amber-50/80 border-stone-200/90 hover:border-[#c29b40]'
-                      }`}
-                    >
-                      <span className="text-base p-1 bg-stone-100 rounded-lg group-hover:scale-110 transition-transform">
-                        {legend.icon}
-                      </span>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[11px] font-black text-stone-900 group-hover:text-[#916a24] line-clamp-1 max-w-[130px]">
-                            {legend.hero.name}
-                          </span>
-                          {isKey && (
-                            <span className="text-[8px] font-black px-1 py-0.2 bg-amber-200 text-amber-950 rounded font-mono">
-                              ⭐
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[9px] text-stone-500 font-medium">
-                          {lang === 'ar' ? legend.categoryLabelAr : legend.categoryLabelEn}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 mr-1">
-                        <button
-                          type="button"
-                          onClick={() => handleApplyLegendToAiForm(legend)}
-                          className="px-2 py-0.5 rounded-md bg-[#c29b40]/20 hover:bg-[#c29b40] text-amber-950 hover:text-stone-950 text-[10px] font-bold transition-all cursor-pointer"
-                          title={lang === 'ar' ? 'تطبيق في المولد الذكي (AI)' : 'Apply to AI'}
-                        >
-                          {lang === 'ar' ? 'تطبيق' : 'Apply'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleLoadLegendAsActiveProject(legend)}
-                          className="px-2 py-0.5 rounded-md bg-stone-900 hover:bg-black text-[#f5d996] text-[10px] font-bold transition-all cursor-pointer shadow-2xs hover:scale-105"
-                          title={lang === 'ar' ? 'تحميل فوري لجميع المشاهد الـ 10s' : 'Instant 10s scenes'}
-                        >
-                          ⚡ {lang === 'ar' ? 'فتح' : 'Play'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Ready Screenplay Templates Selector */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -3436,28 +2752,7 @@ export default function CinemaMovieStudio({
                   </button>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={isFetchingContextSuggestions && contextSuggestionsTarget === 'custom_input'}
-                    onClick={() => handleFetchDialogueContextSuggestions(
-                      'custom_input',
-                      customDialogueInput,
-                      {
-                        sceneTitle: 'حوار السيناريو المسبق',
-                        sceneBeat: concept,
-                        speakerName: characterName || 'البطل',
-                        concept: concept,
-                        genre: genre
-                      }
-                    )}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-[#c29b40] text-amber-950 hover:text-stone-950 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-[#c29b40]/40 disabled:opacity-50"
-                    title={lang === 'ar' ? 'اقتراح صيغ بديلة وتحسينات للجملة الحالية وفق طبيعة وسياق القصة' : 'Suggest contextual alternatives for this dialogue based on story context'}
-                  >
-                    <Sparkles className={`w-3 h-3 text-[#c29b40] ${isFetchingContextSuggestions && contextSuggestionsTarget === 'custom_input' ? 'animate-spin' : ''}`} />
-                    <span>{isFetchingContextSuggestions && contextSuggestionsTarget === 'custom_input' ? (lang === 'ar' ? 'تحليل السياق...' : 'Analyzing...') : (lang === 'ar' ? '✨ اقتراحات السياق' : 'Context Suggestions')}</span>
-                  </button>
-
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleSuggestDialoguePreset()}
@@ -3487,9 +2782,6 @@ export default function CinemaMovieStudio({
                   )}
                 </div>
               </div>
-
-              {/* Render Context Suggestions Box for customDialogueInput */}
-              {renderContextSuggestionsPanel('custom_input', (sug) => handleApplyContextSuggestion('custom_input', sug))}
             </div>
 
             {/* Face Consistency Master Anchor Section */}
@@ -3587,19 +2879,6 @@ export default function CinemaMovieStudio({
                 </>
               )}
             </button>
-
-            {/* Story Generator Tester Quick Action */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setIsTesterModalOpen(true)}
-                className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-[#916a24] hover:text-[#78551b] text-xs font-bold transition-all flex items-center justify-center gap-2 border border-[#c29b40]/40 cursor-pointer shadow-2xs hover:scale-[1.01]"
-                title={lang === 'ar' ? 'تشغيل فحص مؤتمت لجودة وسرعة مولد السيناريوهات على قصص معيارية' : 'Test Story-to-Screenplay Generator on benchmarks'}
-              >
-                <FlaskConical className="w-3.5 h-3.5 text-[#c29b40]" />
-                <span>{lang === 'ar' ? '🧪 فحص واختبار مُولد السيناريوهات (Diagnostic Lab)' : '🧪 Story-to-Screenplay Generator Tester'}</span>
-              </button>
-            </div>
           </form>
           ) : (
             <div className="space-y-5 animate-in fade-in duration-200">
@@ -3646,23 +2925,6 @@ export default function CinemaMovieStudio({
                 >
                   <FileText className="w-3.5 h-3.5 text-[#c29b40]" />
                   <span>{lang === 'ar' ? 'لصق نص السيناريو كاملاً' : 'Paste Raw Screenplay'}</span>
-                </button>
-              </div>
-
-              {/* Quick Import from Historical Legends */}
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-[#c29b40]/30">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-[#c29b40]" />
-                  <span className="text-xs font-bold text-stone-800">
-                    {lang === 'ar' ? 'استيراد سيناريو من مكتبة الأساطير والتاريخ العربي' : 'Import from Arabic Historical Legends'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsLegendsModalOpen(true)}
-                  className="px-2.5 py-1 rounded-lg bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 text-xs font-black transition-all cursor-pointer shadow-xs"
-                >
-                  {lang === 'ar' ? 'تصفح واختيار' : 'Choose Legend'}
                 </button>
               </div>
 
@@ -3825,40 +3087,10 @@ export default function CinemaMovieStudio({
 
                           {/* Spoken Dialogue Input */}
                           <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/70 space-y-1.5">
-                            <div className="flex flex-wrap items-center justify-between gap-1.5">
-                              <label className="block text-[10px] font-black text-[#916a24] flex items-center gap-1">
-                                <MessageSquare className="w-3 h-3" />
-                                <span>{lang === 'ar' ? 'الحوار الصوتي المنطوق (كلام الشخصية وحركة الشفاه):' : 'Spoken Dialogue & Lip-Sync:'}</span>
-                              </label>
-
-                              {/* Context Suggestions Button */}
-                              <button
-                                type="button"
-                                disabled={isFetchingContextSuggestions && contextSuggestionsTarget === scene.id}
-                                onClick={() => handleFetchDialogueContextSuggestions(
-                                  scene.id,
-                                  scene.dialogueAr,
-                                  {
-                                    sceneTitle: scene.titleAr,
-                                    sceneBeat: scene.screenplayBeatAr,
-                                    speakerName: scene.dialogueSpeaker,
-                                    dialogueEmotion: scene.dialogueEmotion,
-                                    concept: manualConcept || manualTitle,
-                                    genre: genre
-                                  }
-                                )}
-                                className="px-2 py-0.5 rounded-lg bg-stone-900 hover:bg-black text-[#f5d996] text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-[#c29b40]/50 shadow-2xs hover:scale-102 active:scale-95 disabled:opacity-50"
-                                title={lang === 'ar' ? 'اقتراح تحسينات وصيغ بديلة للجملة الحالية وفق طبيعة المشهد المختار' : 'Suggest contextual phrasing improvements based on this scene'}
-                              >
-                                <Sparkles className={`w-3 h-3 text-[#c29b40] ${isFetchingContextSuggestions && contextSuggestionsTarget === scene.id ? 'animate-spin' : ''}`} />
-                                <span>
-                                  {isFetchingContextSuggestions && contextSuggestionsTarget === scene.id
-                                    ? (lang === 'ar' ? 'تحليل السياق...' : 'Analyzing...')
-                                    : (lang === 'ar' ? '✨ اقتراحات السياق' : 'Context Suggestions')}
-                                </span>
-                              </button>
-                            </div>
-
+                            <label className="block text-[10px] font-black text-[#916a24] flex items-center gap-1">
+                              <MessageSquare className="w-3 h-3" />
+                              <span>{lang === 'ar' ? 'الحوار الصوتي المنطوق (كلام الشخصية وحركة الشفاه):' : 'Spoken Dialogue & Lip-Sync:'}</span>
+                            </label>
                             <input
                               type="text"
                               value={scene.dialogueAr}
@@ -3883,9 +3115,6 @@ export default function CinemaMovieStudio({
                                 className="text-[11px] rounded-md border border-stone-300 p-1.5 bg-white text-stone-700"
                               />
                             </div>
-
-                            {/* Render Context Suggestions Box if active for this scene */}
-                            {renderContextSuggestionsPanel(scene.id, (sug) => handleApplyContextSuggestion(scene.id, sug))}
                           </div>
                         </div>
                       );
@@ -3988,92 +3217,6 @@ export default function CinemaMovieStudio({
                     <span>{lang === 'ar' ? `فتح مشروع سابق (${savedProjects.length})` : `Open Saved Project (${savedProjects.length})`}</span>
                   </button>
                 )}
-              </div>
-
-              {/* Ready Arabic Historical & Legendary Movies (1-Click Instant Load into Studio) */}
-              <div className="w-full max-w-xl pt-5 border-t border-stone-200/80 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-black text-stone-800 flex items-center gap-1.5">
-                    <span>📜</span>
-                    <span>{lang === 'ar' ? 'سيناريوهات جاهزة من أساطير وتاريخ العرب (تحميل فوري):' : 'Ready Arabic Historical Legends (Instant Load):'}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsLegendsModalOpen(true)}
-                    className="text-[11px] font-bold text-[#916a24] hover:text-[#78551b] flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>{lang === 'ar' ? 'عرض الكل' : 'View All'} ({ARABIC_HISTORICAL_LEGENDS.length})</span>
-                    <ChevronLeft className={`w-3.5 h-3.5 ${lang === 'en' ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {/* Sayf ibn Dhi Yazan */}
-                  {ARABIC_HISTORICAL_LEGENDS.find(l => l.id === 'legend-sayf-roc') && (
-                    <button
-                      type="button"
-                      onClick={() => handleLoadLegendAsActiveProject(ARABIC_HISTORICAL_LEGENDS.find(l => l.id === 'legend-sayf-roc')!)}
-                      className="p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-white hover:from-amber-100 hover:to-amber-50 border border-amber-200/80 hover:border-[#c29b40] transition-all text-start cursor-pointer group shadow-2xs hover:scale-[1.02]"
-                    >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-lg">🪶</span>
-                        <span className="text-xs font-black text-stone-900 group-hover:text-[#916a24] line-clamp-1">
-                          سيف بن ذي يزن
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-stone-500 line-clamp-2 leading-tight">
-                        {lang === 'ar' ? 'قمة السحاب وعش طائر الرخ واسترداد سيف الأجداد' : 'Cloud peaks & mythic Roc bird'}
-                      </p>
-                      <span className="mt-2 text-[9px] font-bold text-[#916a24] flex items-center gap-1 font-mono">
-                        ⚡ {lang === 'ar' ? 'تحميل 3 مشاهد (30s)' : 'Load 3 Scenes (30s)'}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* Ibn Battuta */}
-                  {ARABIC_HISTORICAL_LEGENDS.find(l => l.id === 'legend-ibn-battuta') && (
-                    <button
-                      type="button"
-                      onClick={() => handleLoadLegendAsActiveProject(ARABIC_HISTORICAL_LEGENDS.find(l => l.id === 'legend-ibn-battuta')!)}
-                      className="p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-white hover:from-amber-100 hover:to-amber-50 border border-amber-200/80 hover:border-[#c29b40] transition-all text-start cursor-pointer group shadow-2xs hover:scale-[1.02]"
-                    >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-lg">🧭</span>
-                        <span className="text-xs font-black text-stone-900 group-hover:text-[#916a24] line-clamp-1">
-                          رحلات ابن بطوطة
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-stone-500 line-clamp-2 leading-tight">
-                        {lang === 'ar' ? 'أمير الرحالة، صراع عواصف المونسون وتدوين عجائب الشرق' : 'Monsoon tempests & medieval wonders'}
-                      </p>
-                      <span className="mt-2 text-[9px] font-bold text-[#916a24] flex items-center gap-1 font-mono">
-                        ⚡ {lang === 'ar' ? 'تحميل 3 مشاهد (30s)' : 'Load 3 Scenes (30s)'}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* Sinbad */}
-                  {ARABIC_HISTORICAL_LEGENDS.find(l => l.id === 'legend-sinbad-whale') && (
-                    <button
-                      type="button"
-                      onClick={() => handleLoadLegendAsActiveProject(ARABIC_HISTORICAL_LEGENDS.find(l => l.id === 'legend-sinbad-whale')!)}
-                      className="p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-white hover:from-amber-100 hover:to-amber-50 border border-amber-200/80 hover:border-[#c29b40] transition-all text-start cursor-pointer group shadow-2xs hover:scale-[1.02]"
-                    >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-lg">🐋</span>
-                        <span className="text-xs font-black text-stone-900 group-hover:text-[#916a24] line-clamp-1">
-                          أسطورة سندباد
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-stone-500 line-clamp-2 leading-tight">
-                        {lang === 'ar' ? 'الرسو على الجزيرة الخضراء وصحوة الحوت العملاق' : 'Awakening of the colossal titan whale'}
-                      </p>
-                      <span className="mt-2 text-[9px] font-bold text-[#916a24] flex items-center gap-1 font-mono">
-                        ⚡ {lang === 'ar' ? 'تحميل 3 مشاهد (30s)' : 'Load 3 Scenes (30s)'}
-                      </span>
-                    </button>
-                  )}
-                </div>
               </div>
             </div>
           )}
@@ -4218,16 +3361,6 @@ export default function CinemaMovieStudio({
 
                     <button
                       type="button"
-                      onClick={() => setIsTesterModalOpen(true)}
-                      className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-[#c29b40] text-[#916a24] hover:text-stone-950 font-bold text-xs transition-all flex items-center gap-1.5 border border-[#c29b40]/40 cursor-pointer shadow-xs hover:scale-102 active:scale-95"
-                      title={lang === 'ar' ? 'فحص واختبار دقة وسرعة مولد السيناريوهات' : 'Test Story-to-Screenplay Generator'}
-                    >
-                      <FlaskConical className="w-3.5 h-3.5 text-[#c29b40]" />
-                      <span>{lang === 'ar' ? 'مختبر الاختبار' : 'Tester Lab'}</span>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={handleExportTextFile}
                       className="px-3 py-2 rounded-xl bg-white hover:bg-stone-50 text-stone-800 font-bold text-xs transition-all flex items-center gap-1.5 border border-stone-300 cursor-pointer shadow-xs hover:border-[#c29b40] hover:text-[#916a24]"
                       title={lang === 'ar' ? 'تصدير السيناريو والحوارات كملف نصي (TXT)' : 'Export Screenplay as Text File (.txt)'}
@@ -4350,265 +3483,6 @@ export default function CinemaMovieStudio({
                   </div>
                 )}
               </div>
-
-              {/* Interactive Story Branching Path Decision System (اختيار المسار) */}
-              {activeProject.availablePaths && activeProject.availablePaths.length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="bg-gradient-to-br from-amber-950/40 via-stone-900 to-stone-950 text-white rounded-3xl p-5 sm:p-6 border border-[#c29b40]/50 shadow-xl space-y-4 relative overflow-hidden"
-                >
-                  <motion.div 
-                    animate={{ 
-                      scale: [1, 1.2, 1],
-                      opacity: [0.08, 0.18, 0.08]
-                    }}
-                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute top-0 right-0 w-72 h-72 bg-[#c29b40]/20 rounded-full blur-3xl pointer-events-none" 
-                  />
-
-                  {/* Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10 border-b border-white/10 pb-3.5">
-                    <div className="flex items-center gap-3">
-                      <motion.div 
-                        whileHover={{ rotate: 15, scale: 1.05 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                        className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#c29b40] to-amber-600 text-stone-950 flex items-center justify-center font-black shadow-md shrink-0 cursor-default"
-                      >
-                        <Compass className="w-5 h-5" />
-                      </motion.div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-black text-white tracking-wide flex items-center gap-1.5">
-                            <span>🧭</span>
-                            <span>{lang === 'ar' ? 'نظام اختيار المسار التفاعلي (Story Branching Paths)' : 'Interactive Story Branching Paths'}</span>
-                          </h4>
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#c29b40] text-stone-950">
-                            DECISION ENGINE
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-amber-200/80 mt-0.5">
-                          {lang === 'ar' 
-                            ? 'اتخذ قرارات مصيرية للبطل لتغيير مسار الأحداث والحوارات ونصوص أوامر الفيديو (AI Prompts) فورياً!' 
-                            : 'Make pivotal story decisions to instantly alter scene events, dialogues, and resulting AI video prompts!'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                      {activeProject.activePathId && (
-                        <motion.div 
-                          key={activeProject.activePathId}
-                          initial={{ opacity: 0, scale: 0.85, y: 5 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.85, y: -5 }}
-                          transition={{ type: "spring", stiffness: 350, damping: 22 }}
-                          className="text-xs font-mono font-bold text-stone-300 bg-white/5 px-3 py-1.5 rounded-xl border border-[#c29b40]/50 flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
-                        >
-                          <span className="text-[#c29b40] font-black">{lang === 'ar' ? 'المسار المعتمد:' : 'Active:'}</span>
-                          <span className="text-amber-100 font-extrabold flex items-center gap-1">
-                            <span>{activeProject.availablePaths.find(p => p.id === activeProject.activePathId)?.icon}</span>
-                            <span>{activeProject.availablePaths.find(p => p.id === activeProject.activePathId)?.[lang === 'ar' ? 'nameAr' : 'nameEn'] || activeProject.activePathId}</span>
-                          </span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Path Choices Cards */}
-                  <motion.div 
-                    variants={{
-                      hidden: { opacity: 0 },
-                      show: {
-                        opacity: 1,
-                        transition: {
-                          staggerChildren: 0.1
-                        }
-                      }
-                    }}
-                    initial="hidden"
-                    animate="show"
-                    className="grid grid-cols-1 md:grid-cols-3 gap-3.5 relative z-10"
-                  >
-                    {activeProject.availablePaths.map((path) => {
-                      const isActive = activeProject.activePathId === path.id;
-                      return (
-                        <motion.div
-                          key={path.id}
-                          layout
-                          variants={{
-                            hidden: { opacity: 0, y: 20 },
-                            show: { 
-                              opacity: 1, 
-                              y: 0,
-                              transition: { duration: 0.35, ease: "easeOut" }
-                            }
-                          }}
-                          whileHover={{ 
-                            y: -5,
-                            scale: 1.015,
-                            transition: { duration: 0.2, ease: "easeOut" }
-                          }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleSelectStoryPath(path.id)}
-                          className={`p-4 rounded-2xl border transition-colors cursor-pointer flex flex-col justify-between gap-3 text-start relative group overflow-hidden ${
-                            isActive
-                              ? 'bg-gradient-to-b from-[#c29b40]/25 via-amber-950/40 to-stone-900 border-[#c29b40] shadow-lg shadow-[#c29b40]/25 ring-2 ring-[#c29b40]/60'
-                              : 'bg-stone-900/80 hover:bg-stone-850 border-stone-800 hover:border-amber-400/40'
-                          }`}
-                        >
-                          {/* Animated Top Glow for Active Path */}
-                          {isActive && (
-                            <motion.div 
-                              layoutId="activePathGlow"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ duration: 0.3 }}
-                              className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-[#f5d996] to-amber-500 shadow-[0_0_12px_#f5d996]"
-                            />
-                          )}
-
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <motion.span 
-                                whileHover={{ rotate: [-6, 6, -3, 0], scale: 1.15 }}
-                                transition={{ duration: 0.35 }}
-                                className="text-2xl p-1.5 bg-black/40 rounded-xl border border-white/10 shrink-0 inline-block"
-                              >
-                                {path.icon}
-                              </motion.span>
-                              <div className="flex items-center gap-1.5">
-                                {path.badgeAr && (
-                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
-                                    isActive
-                                      ? 'bg-[#c29b40] text-stone-950 border-[#c29b40]'
-                                      : 'bg-white/10 text-stone-300 border-white/10'
-                                  }`}>
-                                    {lang === 'ar' ? path.badgeAr : (path.badgeEn || path.badgeAr)}
-                                  </span>
-                                )}
-                                <AnimatePresence>
-                                  {isActive && (
-                                    <motion.span 
-                                      initial={{ scale: 0, opacity: 0 }}
-                                      animate={{ scale: 1, opacity: 1 }}
-                                      exit={{ scale: 0, opacity: 0 }}
-                                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                                      className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" 
-                                      title="Active Path" 
-                                    />
-                                  )}
-                                </AnimatePresence>
-                              </div>
-                            </div>
-
-                            <div>
-                              <h5 className={`text-xs font-black transition-colors ${
-                                isActive ? 'text-[#f5d996]' : 'text-white group-hover:text-amber-200'
-                              }`}>
-                                {lang === 'ar' ? path.nameAr : path.nameEn}
-                              </h5>
-                              <p className="text-[11px] text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                                {lang === 'ar' ? path.descriptionAr : path.descriptionEn}
-                              </p>
-                            </div>
-
-                            {/* Outcome Preview */}
-                            {(path.outcomePreviewAr || path.outcomePreviewEn) && (
-                              <motion.div 
-                                layout
-                                className={`p-2.5 rounded-xl border text-[10px] leading-relaxed transition-all ${
-                                  isActive
-                                    ? 'bg-amber-950/40 border-[#c29b40]/50 text-amber-100 shadow-inner'
-                                    : 'bg-black/50 border-white/10 text-amber-200/90'
-                                }`}
-                              >
-                                <span className="font-bold text-amber-400 flex items-center gap-1 mb-0.5">
-                                  <span>⚡</span>
-                                  <span>{lang === 'ar' ? 'التحول الدرامي الناتج:' : 'Dramatic Outcome:'}</span>
-                                </span>
-                                {lang === 'ar' ? path.outcomePreviewAr : (path.outcomePreviewEn || path.outcomePreviewAr)}
-                              </motion.div>
-                            )}
-
-                            {/* Prompt Modifiers tags */}
-                            {path.promptModifierKeywords && path.promptModifierKeywords.length > 0 && (
-                              <div className="space-y-1 pt-1">
-                                <span className="text-[9px] text-stone-400 font-bold block">
-                                  {lang === 'ar' ? 'تعديل كلمات البرومبت:' : 'Prompt Keywords:'}
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {path.promptModifierKeywords.map((kw, kwIdx) => (
-                                    <motion.span 
-                                      key={kwIdx}
-                                      whileHover={{ scale: 1.08 }}
-                                      className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
-                                        isActive
-                                          ? 'bg-[#c29b40]/20 text-[#f5d996] border-[#c29b40]/40'
-                                          : 'bg-white/5 text-amber-300/80 border-white/5'
-                                      }`}
-                                    >
-                                      +{kw}
-                                    </motion.span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px]">
-                            <span className="text-[10px] font-mono text-stone-400">
-                              {path.sceneOverrides.length} {lang === 'ar' ? 'مشاهد تتغير' : 'altered scenes'}
-                            </span>
-
-                            <motion.button
-                              type="button"
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectStoryPath(path.id);
-                              }}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
-                                isActive
-                                  ? 'bg-[#c29b40] text-stone-950 shadow-md shadow-[#c29b40]/30'
-                                  : 'bg-white/10 hover:bg-[#c29b40] text-white hover:text-stone-950'
-                              }`}
-                            >
-                              <AnimatePresence mode="wait">
-                                {isActive ? (
-                                  <motion.div 
-                                    key="applied" 
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0.8, opacity: 0 }}
-                                    className="flex items-center gap-1"
-                                  >
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                    <span>{lang === 'ar' ? 'المسار المعتمد' : 'Applied'}</span>
-                                  </motion.div>
-                                ) : (
-                                  <motion.div 
-                                    key="choose" 
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0.8, opacity: 0 }}
-                                    className="flex items-center gap-1"
-                                  >
-                                    <Wand2 className="w-3.5 h-3.5" />
-                                    <span>{lang === 'ar' ? 'اختيار المسار' : 'Choose Path'}</span>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </motion.div>
-                </motion.div>
-              )}
 
               {/* 10-Second Scene Playback Simulator */}
               <div className="bg-stone-900 text-white rounded-3xl p-5 sm:p-6 border border-stone-800 shadow-md space-y-4">
@@ -4781,11 +3655,10 @@ export default function CinemaMovieStudio({
                     <button
                       type="button"
                       onClick={handleAddNewScene}
-                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#c29b40] to-amber-600 hover:from-[#a6802f] hover:to-amber-700 text-stone-950 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                      title={lang === 'ar' ? 'إعداد المشهد يدوياً بسيناريو وحوار أو تصميمه بالذكاء الاصطناعي' : 'Author Scene manually or design with AI'}
+                      className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#916a24] text-xs font-bold transition-all flex items-center gap-1 border border-amber-200 cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>{lang === 'ar' ? 'إعداد وإضافة مشهد (10s)' : 'Author / Add Scene'}</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{lang === 'ar' ? 'إضافة مشهد 10s' : 'Add 10s Scene'}</span>
                     </button>
                   </div>
                 </div>
@@ -4916,18 +3789,6 @@ export default function CinemaMovieStudio({
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200">
                             🔄 {scene.cameraMotion}
                           </span>
-                          {/* Story Path Overridden Badge */}
-                          {activeProject.availablePaths?.find(p => p.id === activeProject.activePathId)?.sceneOverrides.some(o => o.sceneNumber === (scene.sceneNumber || idx + 1)) && (
-                            <motion.span 
-                              initial={{ scale: 0.75, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              transition={{ type: "spring", stiffness: 450, damping: 20 }}
-                              className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1 shadow-2xs"
-                            >
-                              <span className="animate-spin text-[10px]" style={{ animationDuration: '4s' }}>🧭</span>
-                              <span>{lang === 'ar' ? 'معدل بالمسار المختار' : 'Path Modified'}</span>
-                            </motion.span>
-                          )}
                         </div>
                       </div>
 
@@ -4969,112 +3830,90 @@ export default function CinemaMovieStudio({
                         )}
                       </div>
 
-                      {/* Character Spoken Dialogue & Lip-Sync Card (Interactive Dialogue with Smart Style Suggestions & Local AI Scene Refiner) */}
-                      <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-300/80 space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#c29b40] text-stone-950 flex items-center gap-1">
-                              <MessageSquare className="w-3 h-3" />
-                              <span>{scene.dialogueSpeaker || activeProject.characterAnchor?.name || (lang === 'ar' ? 'البطل' : 'Character')}</span>
-                            </span>
-                            {scene.dialogueEmotion && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-[#916a24] border border-amber-200">
-                                🎭 {scene.dialogueEmotion}
+                      {/* Character Spoken Dialogue & Lip-Sync Card */}
+                      {(scene.dialogueAr || scene.dialogueEn) && (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/40 border border-amber-200/80 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#c29b40] text-stone-950 flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span>{scene.dialogueSpeaker || activeProject.characterAnchor?.name || (lang === 'ar' ? 'البطل' : 'Character')}</span>
                               </span>
+                              {scene.dialogueEmotion && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100/90 text-[#916a24] border border-amber-200">
+                                  🎭 {scene.dialogueEmotion}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white text-stone-700 border border-amber-200">
+                                ⏱️ {scene.dialogueTiming || scene.timeRange}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={regeneratingDialogueIndex === idx}
+                                onClick={() => handleRegenerateSceneDialogue(idx)}
+                                className="px-2.5 py-0.5 rounded-md bg-amber-500/20 hover:bg-[#c29b40] text-[10px] font-black text-amber-950 transition-all flex items-center gap-1 cursor-pointer border border-[#c29b40]/50 shadow-xs hover:text-stone-950"
+                                title={lang === 'ar' ? 'توليد حوار ذكي جديد لهذا المشهد نابع 100% من فكرة القصة بواسطة الذكاء الاصطناعي' : 'Generate fresh AI dialogue tailored to the story idea'}
+                              >
+                                {regeneratingDialogueIndex === idx ? (
+                                  <>
+                                    <RefreshCw className="w-3 h-3 animate-spin text-[#916a24]" />
+                                    <span>{lang === 'ar' ? 'جاري كتابة الحوار...' : 'Generating...'}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3 h-3 text-[#916a24]" />
+                                    <span>{lang === 'ar' ? '✨ توليد حوار من الفكرة' : '✨ AI Dialogue'}</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleCopyDialogue(scene.dialogueAr || scene.dialogueEn || '', idx)}
+                                className="px-2 py-0.5 rounded-md bg-white hover:bg-amber-100 text-[10px] font-bold text-[#916a24] transition-all flex items-center gap-1 cursor-pointer border border-amber-300 shadow-xs"
+                                title={lang === 'ar' ? 'نسخ الحوار المنطوق لأدوات الصوت مثل ElevenLabs' : 'Copy dialogue for TTS tools'}
+                              >
+                                {copiedDialogueIndex === idx ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span className="text-emerald-700">{lang === 'ar' ? 'تم النسخ!' : 'Copied!'}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mic className="w-3 h-3" />
+                                    <span>{lang === 'ar' ? 'نسخ الحوار' : 'Copy Dialogue'}</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            {scene.dialogueAr && (
+                              <p className="text-xs text-stone-900 font-semibold italic">
+                                "{scene.dialogueAr}"
+                              </p>
                             )}
-                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white text-stone-700 border border-amber-200">
-                              ⏱️ {scene.dialogueTiming || scene.timeRange}
-                            </span>
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                              <span>⚡</span>
-                              <span>{lang === 'ar' ? 'ذكاء محلي' : 'Local AI'}</span>
-                            </span>
+                            {scene.dialogueEn && (
+                              <p className="text-[11px] text-stone-600 italic font-mono">
+                                "{scene.dialogueEn}"
+                              </p>
+                            )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {/* Smart Style Suggestions Trigger */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenSmartDialogueSuggestions(idx, scene)}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer border shadow-xs active:scale-95 ${
-                                contextSuggestionsData?.targetId === `scene_card_${idx}`
-                                  ? 'bg-[#c29b40] text-stone-950 border-[#c29b40]'
-                                  : 'bg-amber-500/20 hover:bg-[#c29b40] text-amber-950 hover:text-stone-950 border-[#c29b40]/60'
-                              }`}
-                              title={lang === 'ar' ? 'اقتراح ذكي: تحسينات أسلوبية للنص بناءً على سياق المشهد' : 'Smart Suggestion: Contextual style improvements'}
-                            >
-                              <Sparkles className="w-3 h-3 text-[#916a24]" />
-                              <span>{lang === 'ar' ? '💡 اقتراح ذكي' : '💡 Smart Style'}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={regeneratingDialogueIndex === idx}
-                              onClick={() => handleRegenerateSceneDialogue(idx)}
-                              className="px-2.5 py-1 rounded-lg bg-white hover:bg-stone-50 text-[10px] font-bold text-stone-700 transition-all flex items-center gap-1 cursor-pointer border border-stone-200 shadow-xs"
-                              title={lang === 'ar' ? 'توليد حوار جديد من فكرة القصة' : 'Regenerate from idea'}
-                            >
-                              {regeneratingDialogueIndex === idx ? (
-                                <>
-                                  <RefreshCw className="w-3 h-3 animate-spin text-[#916a24]" />
-                                  <span>{lang === 'ar' ? 'جاري التوليد...' : 'Generating...'}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Wand2 className="w-3 h-3 text-[#916a24]" />
-                                  <span>{lang === 'ar' ? 'توليد كامل' : 'Full Gen'}</span>
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleCopyDialogue(scene.dialogueAr || scene.dialogueEn || '', idx)}
-                              className="p-1 rounded-lg bg-white hover:bg-amber-100 text-[#916a24] transition-all cursor-pointer border border-amber-300 shadow-xs"
-                              title={lang === 'ar' ? 'نسخ الحوار المنطوق' : 'Copy dialogue'}
-                            >
-                              {copiedDialogueIndex === idx ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Interactive Direct Dialogue Input & Local AI Auto-Refiner */}
-                        <div className="space-y-1.5">
-                          <div className="relative">
-                            <textarea
-                              rows={2}
-                              value={scene.dialogueAr || ''}
-                              onChange={(e) => handleInlineSceneDialogueChange(idx, e.target.value)}
-                              placeholder={lang === 'ar' ? 'أدخل نص الحوار المنطوق هنا مباشرة أو اضغط «اقتراح ذكي»...' : 'Type spoken dialogue directly or click Smart Style...'}
-                              className="w-full text-xs font-bold text-stone-900 bg-white/95 rounded-xl border border-amber-300/80 p-2.5 shadow-2xs focus:outline-none focus:border-[#c29b40] focus:ring-1 focus:ring-[#c29b40]/50 transition-all leading-relaxed placeholder-stone-400"
-                            />
-                          </div>
-
-                          {scene.dialogueEn && (
-                            <p className="text-[11px] text-stone-500 italic font-mono px-1">
-                              "{scene.dialogueEn}"
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Contextual Dialogue Suggestions Panel (Displayed when user clicks 💡 اقتراح ذكي) */}
-                        {renderContextSuggestionsPanel(`scene_card_${idx}`, (sug) => handleApplyContextSuggestion(`scene_card_${idx}`, sug))}
-
-                        <div className="pt-1.5 border-t border-amber-200/50 flex flex-wrap items-center justify-between text-[10px] text-[#916a24]">
-                          <span className="flex items-center gap-1 font-medium">
-                            <Sparkles className="w-3 h-3 text-[#c29b40]" />
+                          <div className="pt-1 border-t border-amber-200/50 flex items-center gap-1.5 text-[10px] text-[#916a24] font-medium">
+                            <Sparkles className="w-3 h-3 shrink-0" />
                             <span>
                               {lang === 'ar'
-                                ? 'أي تعديل أو اختيار ذكي يعيد ضبط توقيت حركة الشفاه والبرومبت محلياً وتلقائياً.'
-                                : 'Any edit or smart suggestion immediately refines lip-sync timing and video prompt locally.'}
+                                ? 'مدمج في البرومبت لتوليد حركة الشفاه (Lip-Sync) والتعابير بدقة متناهية.'
+                                : 'Embedded in video prompt for synchronized lip-sync and expressive acting.'}
                             </span>
-                          </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Sound Design if any */}
                       {scene.soundDesign && (
@@ -5311,299 +4150,126 @@ export default function CinemaMovieStudio({
               </div>
             </div>
 
-            {/* Drawer Tab Switcher: My Projects vs Historical Legends */}
-            <div className="flex border-b border-stone-200 bg-stone-100/70 p-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSavedDrawerTab('my_projects')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  savedDrawerTab === 'my_projects'
-                    ? 'bg-white text-stone-900 shadow-xs border border-stone-200/80'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-                }`}
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-[#c29b40]" />
-                <span>{lang === 'ar' ? 'مشاريعي الخاصة' : 'My Screenplays'}</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-stone-200 text-stone-700 font-mono">
-                  {savedProjects.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSavedDrawerTab('legends')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  savedDrawerTab === 'legends'
-                    ? 'bg-white text-[#916a24] shadow-xs border border-amber-300'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-                }`}
-              >
-                <Scroll className="w-3.5 h-3.5 text-[#c29b40]" />
-                <span>{lang === 'ar' ? 'أساطير وتاريخ العرب' : 'Arab Legends'}</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 text-[#916a24] font-mono font-bold">
-                  {ARABIC_HISTORICAL_LEGENDS.length}
-                </span>
-              </button>
-            </div>
-
             {/* Search filter bar */}
-            <div className="p-3 bg-stone-100/60 border-b border-stone-200/70">
-              <input
-                type="text"
-                value={savedSearchQuery}
-                onChange={(e) => setSavedSearchQuery(e.target.value)}
-                placeholder={
-                  savedDrawerTab === 'my_projects'
-                    ? (lang === 'ar' ? 'بحث في المشاريع المحفوظة بالاسم أو الفكرة...' : 'Search saved projects by title or idea...')
-                    : (lang === 'ar' ? 'بحث في الأساطير والتاريخ (سيف بن ذي يزن، ابن بطوطة، سندباد...)' : 'Search legends (Sayf, Ibn Battuta, Sinbad...)')
-                }
-                className="w-full text-xs rounded-xl border border-stone-300 p-2.5 bg-white text-stone-900 placeholder-stone-400 focus:outline-none focus:border-[#c29b40]"
-              />
-            </div>
+            {savedProjects.length > 0 && (
+              <div className="p-3 bg-stone-100/60 border-b border-stone-200/70">
+                <input
+                  type="text"
+                  value={savedSearchQuery}
+                  onChange={(e) => setSavedSearchQuery(e.target.value)}
+                  placeholder={lang === 'ar' ? 'بحث في المشاريع المحفوظة بالاسم أو الفكرة...' : 'Search saved projects by title or idea...'}
+                  className="w-full text-xs rounded-xl border border-stone-300 p-2.5 bg-white text-stone-900 placeholder-stone-400 focus:outline-none focus:border-[#c29b40]"
+                />
+              </div>
+            )}
 
-            {/* Drawer Body: My Projects Tab */}
-            {savedDrawerTab === 'my_projects' && (
-              <div className="p-5 overflow-y-auto flex-1 space-y-3">
-                {isLoadingSaved ? (
-                  <div className="py-12 text-center text-xs text-stone-500 flex flex-col items-center gap-2">
-                    <RefreshCw className="w-5 h-5 animate-spin text-[#c29b40]" />
-                    <span>{lang === 'ar' ? 'جاري تحميل وتحديث المشاريع...' : 'Loading saved projects...'}</span>
-                  </div>
-                ) : savedProjects.length === 0 ? (
-                  <div className="py-12 text-center text-stone-400 space-y-3">
-                    <Film className="w-12 h-12 mx-auto text-stone-300" />
-                    <p className="text-sm font-bold text-stone-700">
-                      {lang === 'ar' ? 'لا توجد مشاريع محفوظة حالياً.' : 'No saved screenplay projects yet.'}
-                    </p>
-                    <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
-                      {lang === 'ar' 
-                        ? 'عند توليد أي فكرة سينمائية أو الضغط على زر "حفظ المشروع السينمائي"، ستظهر جميع سيناريوهاتك هنا بشكل آمن ودائم.' 
-                        : 'Generate any movie concept or click "Save Movie Project" to see them safely listed here.'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setSavedDrawerTab('legends')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-[#916a24] text-xs font-bold transition-all cursor-pointer"
-                    >
-                      <span>📜</span>
-                      <span>{lang === 'ar' ? 'استكشف أساطير وتاريخ العرب الجاهزة' : 'Explore Ready Arab Legends'}</span>
-                    </button>
-                  </div>
-                ) : filteredSavedProjects.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-stone-500">
-                    {lang === 'ar' ? 'لا توجد نتائج مطابقة لبحثك.' : 'No projects match your search.'}
-                  </div>
-                ) : (
-                  filteredSavedProjects.map((proj) => (
-                    <div
-                      key={proj.id}
-                      onClick={() => handleResumeProject(proj)}
-                      className="p-4 rounded-2xl border border-stone-200 hover:border-[#c29b40] bg-stone-50/70 hover:bg-amber-50/30 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group shadow-xs"
-                    >
-                      <div className="space-y-1.5 min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-black text-stone-900 group-hover:text-[#916a24] truncate">
-                            {proj.titleAr || proj.titleEn}
+            {/* Saved Projects List */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-3">
+              {isLoadingSaved ? (
+                <div className="py-12 text-center text-xs text-stone-500 flex flex-col items-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-[#c29b40]" />
+                  <span>{lang === 'ar' ? 'جاري تحميل وتحديث المشاريع...' : 'Loading saved projects...'}</span>
+                </div>
+              ) : savedProjects.length === 0 ? (
+                <div className="py-12 text-center text-stone-400 space-y-3">
+                  <Film className="w-12 h-12 mx-auto text-stone-300" />
+                  <p className="text-sm font-bold text-stone-700">
+                    {lang === 'ar' ? 'لا توجد مشاريع محفوظة حالياً.' : 'No saved screenplay projects yet.'}
+                  </p>
+                  <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
+                    {lang === 'ar' 
+                      ? 'عند توليد أي فكرة سينمائية أو الضغط على زر "حفظ المشروع السينمائي"، ستظهر جميع سيناريوهاتك هنا بشكل آمن ودائم.' 
+                      : 'Generate any movie concept or click "Save Movie Project" to see them safely listed here.'}
+                  </p>
+                </div>
+              ) : filteredSavedProjects.length === 0 ? (
+                <div className="py-8 text-center text-xs text-stone-500">
+                  {lang === 'ar' ? 'لا توجد نتائج مطابقة لبحثك.' : 'No projects match your search.'}
+                </div>
+              ) : (
+                filteredSavedProjects.map((proj) => (
+                  <div
+                    key={proj.id}
+                    onClick={() => handleResumeProject(proj)}
+                    className="p-4 rounded-2xl border border-stone-200 hover:border-[#c29b40] bg-stone-50/70 hover:bg-amber-50/30 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group shadow-xs"
+                  >
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-black text-stone-900 group-hover:text-[#916a24] truncate">
+                          {proj.titleAr || proj.titleEn}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-md bg-stone-200 text-stone-700">
+                          {proj.scenes?.length || 0} {lang === 'ar' ? 'مشاهد (10s)' : 'scenes'}
+                        </span>
+                        {activeProject && activeProject.id === proj.id && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            {lang === 'ar' ? 'المشروع النشط حالياً' : 'Active'}
                           </span>
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-md bg-stone-200 text-stone-700">
-                            {proj.scenes?.length || 0} {lang === 'ar' ? 'مشاهد (10s)' : 'scenes'}
-                          </span>
-                          {activeProject && activeProject.id === proj.id && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              {lang === 'ar' ? 'المشروع النشط حالياً' : 'Active'}
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-stone-600 line-clamp-2 leading-relaxed">
-                          {proj.loglineAr || proj.concept}
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-2.5 text-[10px] text-stone-400 font-mono">
-                          <span className="text-[#916a24] font-bold">{proj.genre}</span>
-                          <span>•</span>
-                          <span>{proj.totalDurationSeconds || (proj.scenes?.length || 0) * 10}s</span>
-                          <span>•</span>
-                          <span>{new Date(proj.updatedAt || proj.createdAt).toLocaleDateString()} {new Date(proj.updatedAt || proj.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleResumeProject(proj)}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#c29b40] text-stone-950 font-black text-xs hover:bg-[#a6802f] transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                        >
-                          <Play className="w-3 h-3 fill-stone-950" />
-                          <span>{lang === 'ar' ? 'استئناف' : 'Resume'}</span>
-                        </button>
+                      <p className="text-[11px] text-stone-600 line-clamp-2 leading-relaxed">
+                        {proj.loglineAr || proj.concept}
+                      </p>
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newId = `movie_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-                            const copy: MovieProject = {
-                              ...proj,
-                              id: newId,
-                              titleAr: `${proj.titleAr} (نسخة)`,
-                              titleEn: `${proj.titleEn || proj.titleAr} (Copy)`,
-                              createdAt: new Date().toISOString(),
-                              updatedAt: new Date().toISOString()
-                            };
-                            handleSaveCurrentProject(copy, true);
-                          }}
-                          className="p-2 rounded-xl text-stone-500 hover:text-stone-800 hover:bg-stone-200/60 transition-all cursor-pointer"
-                          title={lang === 'ar' ? 'نسخ المشروع' : 'Duplicate project'}
-                        >
-                          <Layers className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteProject(proj.id, e)}
-                          className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
-                          title={lang === 'ar' ? 'حذف المشروع' : 'Delete Project'}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="flex flex-wrap items-center gap-2.5 text-[10px] text-stone-400 font-mono">
+                        <span className="text-[#916a24] font-bold">{proj.genre}</span>
+                        <span>•</span>
+                        <span>{proj.totalDurationSeconds || (proj.scenes?.length || 0) * 10}s</span>
+                        <span>•</span>
+                        <span>{new Date(proj.updatedAt || proj.createdAt).toLocaleDateString()} {new Date(proj.updatedAt || proj.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
 
-            {/* Drawer Body: Arab Historical Legends Tab */}
-            {savedDrawerTab === 'legends' && (
-              <div className="p-5 overflow-y-auto flex-1 space-y-3.5">
-                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/80 text-xs text-[#916a24] flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">📜</span>
-                    <span className="font-semibold leading-relaxed">
-                      {lang === 'ar'
-                        ? 'مجموعة سيناريوهات جاهزة ومطابقة 100% لهيكل بيانات السينما (مشاهد 10 ثوانٍ، حوارات، ومثبت ملامح موحد).'
-                        : 'Ready screenplays conforming 100% to cinema data structure with 10s pacing, dialogues, and face anchors.'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSavedDrawerOpen(false);
-                      setIsLegendsModalOpen(true);
-                    }}
-                    className="shrink-0 px-2.5 py-1.5 rounded-xl bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 font-black text-[11px] transition-all cursor-pointer"
-                  >
-                    {lang === 'ar' ? 'المكتبة الموسعة' : 'Full Library'}
-                  </button>
-                </div>
-
-                {filteredLegends.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-stone-500">
-                    {lang === 'ar' ? 'لا توجد أساطير مطابقة لبحثك.' : 'No legends match your search.'}
-                  </div>
-                ) : (
-                  filteredLegends.map((leg) => {
-                    const isKeyLegend = ['legend-sayf-roc', 'legend-ibn-battuta', 'legend-sinbad-whale'].includes(leg.id);
-                    return (
-                      <div
-                        key={leg.id}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col gap-3 shadow-xs ${
-                          isKeyLegend
-                            ? 'bg-gradient-to-br from-amber-50/90 to-white border-amber-300 hover:border-[#c29b40]'
-                            : 'bg-stone-50/70 hover:bg-stone-100/70 border-stone-200 hover:border-stone-300'
-                        }`}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleResumeProject(proj)}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#c29b40] text-stone-950 font-black text-xs hover:bg-[#a6802f] transition-all cursor-pointer shadow-xs flex items-center gap-1"
                       >
-                        <div className="space-y-1.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-xl shrink-0">{leg.icon}</span>
-                              <h4 className="text-xs font-black text-stone-900 truncate">
-                                {leg.titleAr}
-                              </h4>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              {isKeyLegend && (
-                                <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 border border-amber-300">
-                                  {lang === 'ar' ? '⭐ مميز' : 'Featured'}
-                                </span>
-                              )}
-                              <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-md bg-stone-200 text-stone-700">
-                                {leg.readyScenes.length} {lang === 'ar' ? 'مشاهد (10s)' : 'scenes'} • {leg.readyScenes.length * 10}s
-                              </span>
-                            </div>
-                          </div>
+                        <Play className="w-3 h-3 fill-stone-950" />
+                        <span>{lang === 'ar' ? 'استئناف' : 'Resume'}</span>
+                      </button>
 
-                          <p className="text-[11px] text-stone-600 line-clamp-2 leading-relaxed">
-                            {leg.taglineAr || leg.conceptAr}
-                          </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newId = `movie_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+                          const copy: MovieProject = {
+                            ...proj,
+                            id: newId,
+                            titleAr: `${proj.titleAr} (نسخة)`,
+                            titleEn: `${proj.titleEn || proj.titleAr} (Copy)`,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                          };
+                          handleSaveCurrentProject(copy, true);
+                        }}
+                        className="p-2 rounded-xl text-stone-500 hover:text-stone-800 hover:bg-stone-200/60 transition-all cursor-pointer"
+                        title={lang === 'ar' ? 'نسخ المشروع' : 'Duplicate project'}
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                      </button>
 
-                          {/* Hero & Character Consistency Anchor */}
-                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-500 pt-0.5">
-                            <span className="font-bold text-[#916a24] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 flex items-center gap-1">
-                              <UserCheck className="w-3 h-3 text-[#c29b40]" />
-                              <span>{leg.hero.name}</span>
-                              <span className="opacity-75">({leg.hero.roleAr})</span>
-                            </span>
-                            <span>•</span>
-                            <span className="font-mono text-stone-400">{leg.recommendedStyleEn}</span>
-                          </div>
-                        </div>
-
-                        {/* Action buttons matching existing studio flow */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-200/60">
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleLoadLegendAsActiveProject(leg);
-                                setIsSavedDrawerOpen(false);
-                              }}
-                              className="px-3.5 py-1.5 rounded-xl bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 font-black text-xs transition-all flex items-center gap-1 cursor-pointer shadow-xs hover:scale-102 active:scale-98"
-                            >
-                              <Play className="w-3 h-3 fill-stone-950" />
-                              <span>{lang === 'ar' ? '⚡ فتح في الاستوديو' : 'Load in Studio'}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleApplyLegendToManualMode(leg);
-                                setIsSavedDrawerOpen(false);
-                              }}
-                              className="px-2.5 py-1.5 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs transition-all flex items-center gap-1 cursor-pointer"
-                              title={lang === 'ar' ? 'تعديل المشاهد في المحرر اليدوي' : 'Edit in Manual Mode'}
-                            >
-                              <Edit3 className="w-3 h-3" />
-                              <span>{lang === 'ar' ? 'تعديل يدوي' : 'Manual Edit'}</span>
-                            </button>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsSavedDrawerOpen(false);
-                              setIsLegendsModalOpen(true);
-                            }}
-                            className="text-[11px] font-bold text-[#916a24] hover:text-[#78551b] flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>{lang === 'ar' ? 'معاينة السيناريو' : 'Preview Script'}</span>
-                            <ChevronLeft className={`w-3 h-3 ${lang === 'en' ? 'rotate-180' : ''}`} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteProject(proj.id, e)}
+                        className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                        title={lang === 'ar' ? 'حذف المشروع' : 'Delete Project'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
 
             {/* Drawer Footer */}
             <div className="p-4 border-t border-stone-100 bg-stone-50 flex items-center justify-between text-xs text-stone-500">
               <span className="font-medium font-mono">
-                {savedDrawerTab === 'my_projects'
-                  ? `${savedProjects.length} ${lang === 'ar' ? 'مشروع محفوظ في مكتبتك السينمائية' : 'saved movie projects'}`
-                  : `${ARABIC_HISTORICAL_LEGENDS.length} ${lang === 'ar' ? 'سيناريو تاريخي وأسطوري جاهز ومتطابق مع الاستوديو' : 'ready historical screenplays'}`}
+                {savedProjects.length} {lang === 'ar' ? 'مشروع محفوظ في مكتبتك السينمائية' : 'saved movie projects'}
               </span>
               <button
                 type="button"
@@ -5696,50 +4362,25 @@ export default function CinemaMovieStudio({
                     <span>{lang === 'ar' ? 'الحوار الصوتي المنطوق وتوجيه الشفاه (Lip-Sync)' : 'Spoken Dialogue & Lip-Sync'}</span>
                   </span>
 
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      disabled={isFetchingContextSuggestions && contextSuggestionsTarget === 'modal'}
-                      onClick={() => handleFetchDialogueContextSuggestions(
-                        'modal',
-                        editingScene.scene.dialogueAr || '',
-                        {
-                          sceneTitle: editingScene.scene.titleAr,
-                          sceneBeat: editingScene.scene.screenplayBeatAr || editingScene.scene.dramaticActionAr,
-                          speakerName: editingScene.scene.dialogueSpeaker,
-                          dialogueEmotion: editingScene.scene.dialogueEmotion,
-                          concept: activeProject?.concept,
-                          actPhase: editingScene.scene.actPhase,
-                          genre: activeProject?.genre
-                        }
-                      )}
-                      className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-black text-[#f5d996] text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-[#c29b40]/50 shadow-xs hover:scale-102 active:scale-95 disabled:opacity-50"
-                      title={lang === 'ar' ? 'اقتراح صيغ بديلة وتحسينات للجملة الحالية وفق طبيعة المشهد المختار' : 'Suggest contextual alternatives for this dialogue based on scene nature'}
-                    >
-                      <Sparkles className={`w-3 h-3 text-[#c29b40] ${isFetchingContextSuggestions && contextSuggestionsTarget === 'modal' ? 'animate-spin' : ''}`} />
-                      <span>{isFetchingContextSuggestions && contextSuggestionsTarget === 'modal' ? (lang === 'ar' ? 'تحليل السياق...' : 'Analyzing...') : (lang === 'ar' ? '✨ اقتراحات السياق' : 'Context Suggestions')}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isModalGeneratingDialogue}
-                      onClick={handleGenerateModalDialogue}
-                      className="px-2.5 py-1 rounded-lg bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer shadow-xs"
-                      title={lang === 'ar' ? 'توليد حوار نابع من فكرة القصة وأحداث هذا المشهد بواسطة الذكاء الاصطناعي' : 'Generate smart dialogue from story idea'}
-                    >
-                      {isModalGeneratingDialogue ? (
-                        <>
-                          <RefreshCw className="w-3 h-3 animate-spin text-stone-950" />
-                          <span>{lang === 'ar' ? 'جاري كتابة الحوار...' : 'Generating...'}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3 h-3 text-stone-950" />
-                          <span>{lang === 'ar' ? '✨ توليد حوار جديد' : '✨ New AI Dialogue'}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    disabled={isModalGeneratingDialogue}
+                    onClick={handleGenerateModalDialogue}
+                    className="px-2.5 py-1 rounded-lg bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                    title={lang === 'ar' ? 'توليد حوار نابع من فكرة القصة وأحداث هذا المشهد بواسطة الذكاء الاصطناعي' : 'Generate smart dialogue from story idea'}
+                  >
+                    {isModalGeneratingDialogue ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin text-stone-950" />
+                        <span>{lang === 'ar' ? 'جاري كتابة الحوار...' : 'Generating...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-stone-950" />
+                        <span>{lang === 'ar' ? '✨ اقتراح حوار نابع من الفكرة (AI)' : '✨ Suggest AI Dialogue'}</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -5825,9 +4466,6 @@ export default function CinemaMovieStudio({
                     />
                   </div>
                 </div>
-
-                {/* Render Context Suggestions Box for editingScene modal */}
-                {renderContextSuggestionsPanel('modal', (sug) => handleApplyContextSuggestion('modal', sug))}
               </div>
 
               <div>
@@ -5864,17 +4502,6 @@ export default function CinemaMovieStudio({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Scene Authoring & Add Modal (Manual Screenplay & Spoken Dialogue or AI Co-Director) */}
-      {isAddSceneModalOpen && activeProject && (
-        <SceneAuthoringModal
-          isOpen={isAddSceneModalOpen}
-          onClose={() => setIsAddSceneModalOpen(false)}
-          lang={lang}
-          activeProject={activeProject}
-          onAddScene={handleConfirmAddScene}
-        />
       )}
 
       {/* Share Sequence Modal */}
@@ -6209,33 +4836,6 @@ export default function CinemaMovieStudio({
           </div>
         </div>
       )}
-
-      {/* Story-to-Screenplay Generator Diagnostic Benchmark Tester Modal */}
-      <StoryScreenplayTesterModal
-        isOpen={isTesterModalOpen}
-        onClose={() => setIsTesterModalOpen(false)}
-        lang={lang}
-        initialConcept={concept || activeProject?.concept || ''}
-        onLoadProjectToStudio={(testedProj) => {
-          handleSaveCurrentProject(testedProj, true);
-          setConcept(testedProj.concept || '');
-          setGenre(testedProj.genre || genre);
-          setVisualStyle(testedProj.visualStyle || visualStyle);
-          setTargetAiModel(testedProj.targetAiModel || targetAiModel);
-          setSceneCount(testedProj.scenes?.length || 4);
-          showToast(lang === 'ar' ? '✓ تم اعتماد وتحميل السيناريو المختبر إلى بيئة العمل بنجاح!' : '✓ Tested screenplay loaded into studio!');
-        }}
-      />
-
-      {/* Arabic Historical & Mythological Screenplays Library Modal */}
-      <HistoricalLegendsModal
-        isOpen={isLegendsModalOpen}
-        onClose={() => setIsLegendsModalOpen(false)}
-        lang={lang}
-        onApplyToAiForm={handleApplyLegendToAiForm}
-        onLoadAsActiveProject={handleLoadLegendAsActiveProject}
-        onApplyToManualMode={handleApplyLegendToManualMode}
-      />
 
       {/* Global Print Media Style for PDF Export */}
       <style>{`

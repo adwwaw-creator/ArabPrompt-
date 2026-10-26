@@ -76,15 +76,6 @@
           "type": "string",
           "format": "date-time",
           "description": "Next renewal or expiration timestamp"
-        },
-        "backupNotificationEmailEnabled": {
-          "type": "boolean",
-          "description": "Whether user receives email receipts on successful cloud backups"
-        },
-        "lastBackupEmailSent": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when the last backup security confirmation email was sent"
         }
       },
       "required": ["uid", "email"]

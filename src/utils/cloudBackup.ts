@@ -3,27 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { PromptHistoryItem, AppLanguage } from '../types';
+import { PromptHistoryItem } from '../types';
 
 export interface BackupMetadata {
   isEnabled: boolean;
   provider: 'google-drive' | 'dropbox' | 'firebase' | 'icloud' | 'custom-backend' | null;
   interval: 'manual' | 'daily' | 'weekly' | 'instant';
   lastBackupTime: string | null;
-  emailNotificationEnabled?: boolean;
-  lastNotificationSentTime?: string | null;
-  lastNotificationEmail?: string | null;
-}
-
-export interface BackupNotificationResult {
-  success: boolean;
-  message?: string;
-  deliveryMode?: string;
-  deliveredTo?: string;
-  backupId?: string;
-  timestamp?: string;
-  previewHtml?: string;
-  subject?: string;
 }
 
 export const getBackupConfig = (): BackupMetadata => {
@@ -36,10 +22,7 @@ export const getBackupConfig = (): BackupMetadata => {
         isEnabled: parsed.isEnabled ?? (parsed.provider !== null),
         provider: parsed.provider || null,
         interval: parsed.interval || 'manual',
-        lastBackupTime: parsed.lastBackupTime || null,
-        emailNotificationEnabled: parsed.emailNotificationEnabled !== undefined ? parsed.emailNotificationEnabled : true,
-        lastNotificationSentTime: parsed.lastNotificationSentTime || null,
-        lastNotificationEmail: parsed.lastNotificationEmail || null
+        lastBackupTime: parsed.lastBackupTime || null
       };
     }
   } catch (err) {
@@ -49,10 +32,7 @@ export const getBackupConfig = (): BackupMetadata => {
     isEnabled: false,
     provider: null,
     interval: 'manual',
-    lastBackupTime: null,
-    emailNotificationEnabled: true,
-    lastNotificationSentTime: null,
-    lastNotificationEmail: null
+    lastBackupTime: null
   };
 };
 
@@ -63,53 +43,6 @@ export const saveBackupConfig = (config: BackupMetadata) => {
     console.error('Failed to save backup config:', err);
   }
 };
-
-/**
- * Dispatches an automated email notification to registered users upon successful backup
- */
-export async function dispatchCloudBackupNotification(params: {
-  userEmail: string;
-  userName?: string;
-  provider: string;
-  itemCount: number;
-  backupType?: string;
-  lang?: AppLanguage;
-}): Promise<BackupNotificationResult> {
-  try {
-    const backupId = `BKP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    const timestamp = new Date().toISOString();
-
-    const response = await fetch('/api/send-backup-notification', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userEmail: params.userEmail,
-        userName: params.userName,
-        provider: params.provider,
-        itemCount: params.itemCount,
-        timestamp,
-        backupId,
-        backupType: params.backupType || 'manual',
-        lang: params.lang || 'ar',
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send email notification: ${response.statusText}`);
-    }
-
-    const data: BackupNotificationResult = await response.json();
-    return data;
-  } catch (error: any) {
-    console.warn('dispatchCloudBackupNotification warning:', error);
-    return {
-      success: false,
-      message: error?.message || 'Failed to dispatch email'
-    };
-  }
-}
 
 /**
  * Searches for 'arabprompt_backup.json' in Google Drive.

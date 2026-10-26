@@ -60,9 +60,7 @@ service cloud.firestore {
              (!val.keys().hasAny(['billingCycle']) || (val.billingCycle is string && val.billingCycle.size() <= 32)) &&
              (!val.keys().hasAny(['renewalDate']) || (val.renewalDate is string && val.renewalDate.size() <= 64)) &&
              (!val.keys().hasAny(['dailyUsageCount']) || (val.dailyUsageCount is number)) &&
-             (!val.keys().hasAny(['lastUsageDate']) || (val.lastUsageDate is string && val.lastUsageDate.size() <= 64)) &&
-             (!val.keys().hasAny(['backupNotificationEmailEnabled']) || (val.backupNotificationEmailEnabled is bool)) &&
-             (!val.keys().hasAny(['lastBackupEmailSent']) || (val.lastBackupEmailSent is string && val.lastBackupEmailSent.size() <= 64));
+             (!val.keys().hasAny(['lastUsageDate']) || (val.lastUsageDate is string && val.lastUsageDate.size() <= 64));
     }
 
     function isValidHistory(val) {

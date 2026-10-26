@@ -45,10 +45,8 @@ import {
   Share2,
   Filter,
   RotateCcw,
-  ArrowUpDown,
-  BarChart3
+  ArrowUpDown
 } from 'lucide-react';
-import PromptHistoryDashboard from './PromptHistoryDashboard';
 import {
   getBackupConfig,
   saveBackupConfig,
@@ -156,7 +154,6 @@ export default function PromptHistory({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [backupMessage, setBackupMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [visibleCount, setVisibleCount] = useState(25);
-  const [showDashboard, setShowDashboard] = useState<boolean>(true);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Keyboard shortcut: Press '/' to focus search, 'Esc' to clear search
@@ -2092,36 +2089,16 @@ export default function PromptHistory({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap self-start md:self-center">
+        {history.length > 0 && (
           <button
-            onClick={() => setShowDashboard(!showDashboard)}
-            className="px-3.5 py-2 text-xs font-bold text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-            title={lang === 'ar' ? 'عرض أو إخفاء لوحة الإحصائيات البيانية' : 'Toggle Analytics Dashboard'}
+            onClick={onClearHistory}
+            className="self-start md:self-center px-4 py-2 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-700 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-[#c29b40]" />
-            <span>{showDashboard ? (lang === 'ar' ? 'إخفاء لوحة البيانات' : 'Hide Dashboard') : (lang === 'ar' ? 'عرض لوحة البيانات (Dashboard)' : 'Show Dashboard')}</span>
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{lang === 'ar' ? 'مسح السجل بالكامل' : 'Clear All Records'}</span>
           </button>
-
-          {history.length > 0 && (
-            <button
-              onClick={onClearHistory}
-              className="px-4 py-2 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-700 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{lang === 'ar' ? 'مسح السجل بالكامل' : 'Clear All Records'}</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
-
-      {/* Analytics Dashboard (Recharts Powered) */}
-      {showDashboard && (
-        <PromptHistoryDashboard
-          history={history}
-          lang={lang}
-          isOpenDefault={true}
-        />
-      )}
 
       {/* Backup & Restore Utility Section */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 mb-8 shadow-sm">

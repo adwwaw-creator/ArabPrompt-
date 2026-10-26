@@ -15,7 +15,6 @@ import {
 import { BackupMetadata } from '../utils/cloudBackup';
 import { User } from 'firebase/auth';
 import { UserSubscription, SubscriptionPlan, getUsageStats, UsageStats } from '../utils/subscriptionService';
-import { InstallPrompt } from './InstallPrompt';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -30,7 +29,6 @@ interface HeaderProps {
   onOpenAuth: (mode?: 'login' | 'signup' | 'profile' | 'usage') => void;
   subscription?: UserSubscription;
   onOpenCheckout?: (plan?: SubscriptionPlan) => void;
-  onOpenPlayGuide?: () => void;
 }
 
 export default function Header({ 
@@ -45,8 +43,7 @@ export default function Header({
   user, 
   onOpenAuth,
   subscription,
-  onOpenCheckout,
-  onOpenPlayGuide
+  onOpenCheckout
 }: HeaderProps) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [prevScrollPos, setPrevScrollPos] = useState(0);
@@ -355,9 +352,6 @@ export default function Header({
                 </>
               )}
             </div>
-
-            {/* PWA InstallPrompt - triggers native beforeinstallprompt */}
-            <InstallPrompt lang={lang} />
 
             {/* Cloud Backup Toggle Button */}
             <button

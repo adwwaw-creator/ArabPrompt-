@@ -7,8 +7,6 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   User,
@@ -34,73 +32,22 @@ try {
   // Ignore
 }
 
-/**
- * Standard Google Provider for App Authentication
- * Strictly requests identity & profile without intimidating sensitive drive scopes.
- */
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account'
-});
-
-/**
- * Specialized Google Provider for Drive Cloud Backup
- */
-const googleDriveProvider = new GoogleAuthProvider();
-googleDriveProvider.addScope('https://www.googleapis.com/auth/drive.file');
-googleDriveProvider.setCustomParameters({
-  prompt: 'select_account'
-});
-
-export const isMobileDevice = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-};
+const provider = new GoogleAuthProvider();
+// Request Workspace scopes
+provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Flag to indicate if we are in the middle of a sign-in flow.
 let isSigningIn = false;
 // Cache the access token in memory.
 let cachedAccessToken: string | null = null;
 
-// Initialize auth state listener and handle return from signInWithRedirect
+// Initialize auth state listener. Call this on app load.
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string | null) => void,
   onAuthFailure?: () => void
 ) => {
-  // Process redirect results if the user returned from mobile signInWithRedirect
-  getRedirectResult(auth)
-    .then(async (result) => {
-      if (result?.user) {
-        let token: string | null = null;
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          token = credential.accessToken;
-        } else {
-          try {
-            token = await result.user.getIdToken();
-          } catch (e) {
-            // ignore
-          }
-        }
-        cachedAccessToken = token;
-        if (onAuthSuccess) {
-          onAuthSuccess(result.user, token);
-        }
-      }
-    })
-    .catch((error) => {
-      console.warn('Redirect sign-in notice:', error);
-    });
-
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (!cachedAccessToken) {
-        try {
-          cachedAccessToken = await user.getIdToken();
-        } catch (e) {
-          // ignore
-        }
-      }
       if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
     } else {
       cachedAccessToken = null;
@@ -109,17 +56,14 @@ export const initAuth = (
   });
 };
 
-/**
- * Google Sign In via standard Popup
- * @param withDriveScope Set true only when connecting Google Drive inside Backup Center
- */
-export const googleSignIn = async (withDriveScope: boolean = false): Promise<{ user: User; accessToken: string } | null> => {
+// Must be called from a button click or user interaction
+export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const activeProvider = withDriveScope ? googleDriveProvider : googleProvider;
-    const result = await signInWithPopup(auth, activeProvider);
+    const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
+      // In case accessToken wasn't directly returned by credential (e.g. standard email profile), fallback to user token
       cachedAccessToken = await result.user.getIdToken();
     } else {
       cachedAccessToken = credential.accessToken;
@@ -128,23 +72,6 @@ export const googleSignIn = async (withDriveScope: boolean = false): Promise<{ u
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
-    throw error;
-  } finally {
-    isSigningIn = false;
-  }
-};
-
-/**
- * Google Sign In via Full Page Redirect
- * Optimal for mobile browsers (Firefox Android, Safari, Chrome mobile) where popups are blocked or closed.
- */
-export const googleSignInRedirect = async (withDriveScope: boolean = false): Promise<void> => {
-  try {
-    isSigningIn = true;
-    const activeProvider = withDriveScope ? googleDriveProvider : googleProvider;
-    await signInWithRedirect(auth, activeProvider);
-  } catch (error: any) {
-    console.error('Redirect sign in error:', error);
     throw error;
   } finally {
     isSigningIn = false;
@@ -234,18 +161,10 @@ export const logout = async () => {
   cachedAccessToken = null;
 };
 
-export interface AuthErrorMessageResult {
-  title: string;
-  message: string;
-  isProviderDisabled?: boolean;
-  isPopupError?: boolean;
-  isUserNotFound?: boolean;
-}
-
 /**
  * Translates Firebase Auth error codes into helpful user messages in Arabic and English
  */
-export const getAuthErrorMessage = (error: any, lang: AppLanguage = 'ar'): AuthErrorMessageResult => {
+export const getAuthErrorMessage = (error: any, lang: AppLanguage = 'ar'): { title: string; message: string; isProviderDisabled?: boolean } => {
   const code = error?.code || '';
 
   switch (code) {
@@ -259,20 +178,14 @@ export const getAuthErrorMessage = (error: any, lang: AppLanguage = 'ar'): AuthE
       };
     case 'auth/user-not-found':
       return {
-        title: lang === 'ar' ? 'المستخدم غير مسجل' : 'Account Not Found',
-        message: lang === 'ar' 
-          ? 'لا يوجد حساب مسجل بهذا البريد الإلكتروني حتى الآن. اضغط زر "إنشاء حساب جديد" أدناه لإنشاء حسابك فوراً.' 
-          : 'No user account found with this email. You can create a new account in seconds below.',
-        isUserNotFound: true
+        title: lang === 'ar' ? 'المستخدم غير موجود' : 'User Not Found',
+        message: lang === 'ar' ? 'لا يوجد حساب مسجل بهذا البريد الإلكتروني. يمكنك إنشاء حساب جديد.' : 'No user account found with this email. You can create a new account.'
       };
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
       return {
         title: lang === 'ar' ? 'بيانات الاعتماد غير صحيحة' : 'Invalid Credentials',
-        message: lang === 'ar' 
-          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة، أو لم يتم إنشاء الحساب بعد. يرجى التحقق أو الضغط على "إنشاء حساب جديد".' 
-          : 'Invalid email or password. Please verify your details or click "Sign Up" if you have not registered yet.',
-        isUserNotFound: true
+        message: lang === 'ar' ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التحقق وإعادة المحاولة.' : 'Invalid email or password. Please verify and try again.'
       };
     case 'auth/email-already-in-use':
       return {
@@ -281,7 +194,7 @@ export const getAuthErrorMessage = (error: any, lang: AppLanguage = 'ar'): AuthE
       };
     case 'auth/weak-password':
       return {
-        title: lang === 'ar' ? 'كلمة المرور قصيرة أو ضعيفة' : 'Weak Password',
+        title: lang === 'ar' ? 'كلمة المرور ضعيفة' : 'Weak Password',
         message: lang === 'ar' ? 'يجب أن تتكون كلمة المرور من 6 أحرف أو أرقام على الأقل.' : 'Password should be at least 6 characters long.'
       };
     case 'auth/invalid-email':
@@ -296,27 +209,8 @@ export const getAuthErrorMessage = (error: any, lang: AppLanguage = 'ar'): AuthE
       };
     case 'auth/popup-closed-by-user':
       return {
-        title: lang === 'ar' ? 'تم إغلاق نافذة المصادقة' : 'Sign-in Popup Closed',
-        message: lang === 'ar'
-          ? 'تم إغلاق نافذة المصادقة قبل استكمال العملية (يحدث ذلك غالباً في متصفحات الهاتف كـ Firefox بسبب سياسات النوافذ المنبثقة). يمكنك الضغط على "التحويل المباشر" أدناه للمتابعة بسلاسة دون نوافذ، أو إتمام الدخول بالبريد.'
-          : 'The authentication window was closed before completion (common on mobile browsers like Firefox). You can use "Direct Redirect" below to continue smoothly without popups, or sign in with email.',
-        isPopupError: true
-      };
-    case 'auth/popup-blocked':
-      return {
-        title: lang === 'ar' ? 'تم حظر النافذة المنبثقة' : 'Popup Blocked by Browser',
-        message: lang === 'ar'
-          ? 'قام المتصفح بحظر نافذة Google المنبثقة تلقائياً. اضغط على زر "التحويل المباشر" أدناه لإتمام تسجيل الدخول في نفس الصفحة.'
-          : 'Your browser blocked the sign-in popup. Click "Direct Redirect" below to complete sign-in seamlessly on the same page.',
-        isPopupError: true
-      };
-    case 'auth/cancelled-popup-request':
-      return {
-        title: lang === 'ar' ? 'تم إلغاء الطلب' : 'Request Cancelled',
-        message: lang === 'ar'
-          ? 'تم إلغاء طلب تسجيل الدخول السابق. يمكنك إعادة المحاولة أو المتابعة بالتحويل المباشر.'
-          : 'Previous sign-in request was cancelled. You can retry or use direct redirect.',
-        isPopupError: true
+        title: lang === 'ar' ? 'تم إغلاق النافذة' : 'Popup Closed',
+        message: lang === 'ar' ? 'تم إغلاق نافذة المصادقة قبل استكمال عملية الدخول.' : 'Sign-in popup was closed before completing the process.'
       };
     default:
       return {

@@ -19,13 +19,7 @@ import {
   HelpCircle,
   Unlink,
   Loader2,
-  SlidersHorizontal,
-  Mail,
-  ShieldCheck,
-  Eye,
-  Send,
-  Bell,
-  FileText
+  SlidersHorizontal
 } from 'lucide-react';
 import { PromptHistoryItem, AppLanguage } from '../types';
 import { 
@@ -39,9 +33,7 @@ import {
   downloadDropboxBackup,
   backupToDropboxSimulated,
   backupToICloudSimulated,
-  backupToCustomBackendSimulated,
-  dispatchCloudBackupNotification,
-  BackupNotificationResult
+  backupToCustomBackendSimulated
 } from '../utils/cloudBackup';
 import { syncAllHistoryToFirestore, getUserHistory } from '../utils/firestoreService';
 import { User } from 'firebase/auth';
@@ -62,8 +54,7 @@ interface CloudBackupCenterProps {
   handleConfigChange: (
     newProvider: 'google-drive' | 'dropbox' | 'firebase' | 'icloud' | 'custom-backend' | null,
     newInterval: 'manual' | 'daily' | 'weekly' | 'instant',
-    newEnabled?: boolean,
-    emailNotificationEnabled?: boolean
+    newEnabled?: boolean
   ) => void;
   isCloudBackingUp: boolean;
   setIsCloudBackingUp: (val: boolean) => void;
@@ -122,94 +113,6 @@ export default function CloudBackupCenter({
     if (backupConfig.provider === 'icloud' && !icloudLinked) setIcloudLinked(true);
     if (backupConfig.provider === 'custom-backend' && !customLinked) setCustomLinked(true);
   }, [backupConfig.provider]);
-
-  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewEmailHtml, setPreviewEmailHtml] = useState<string | null>(null);
-  const [previewEmailLoading, setPreviewEmailLoading] = useState(false);
-
-  const handleSendTestEmailNotification = async () => {
-    if (!user?.email) {
-      setBackupMessage({
-        type: 'error',
-        text: lang === 'ar' 
-          ? 'يلزم تسجيل الدخول بالبريد الإلكتروني أولاً لتلقي إشعار الأمان.' 
-          : 'Please sign in with your email first to receive a security notice.'
-      });
-      return;
-    }
-
-    setIsSendingTestEmail(true);
-    setBackupMessage({
-      type: 'info',
-      text: lang === 'ar' 
-        ? `جاري إرسال إشعار أمان تجريبي إلى ${user.email}...` 
-        : `Sending test backup security notification to ${user.email}...`
-    });
-
-    try {
-      const res = await dispatchCloudBackupNotification({
-        userEmail: user.email,
-        userName: user.displayName || undefined,
-        provider: backupConfig.provider || 'firebase',
-        itemCount: history.length || 1,
-        backupType: 'test',
-        lang
-      });
-
-      if (res.success) {
-        const now = new Date().toISOString();
-        const updatedConfig = {
-          ...backupConfig,
-          lastNotificationSentTime: now,
-          lastNotificationEmail: user.email
-        };
-        saveBackupConfig(updatedConfig);
-        handleConfigChange(backupConfig.provider, backupConfig.interval, backupConfig.isEnabled, true);
-
-        setBackupMessage({
-          type: 'success',
-          text: lang === 'ar'
-            ? `✓ تم إرسال إشعار الأمان بنجاح إلى (${user.email})! المعرف الأمني: ${res.backupId}`
-            : `✓ Backup security notification sent to (${user.email})! Backup ID: ${res.backupId}`
-        });
-      } else {
-        throw new Error(res.message || 'Failed to dispatch notification');
-      }
-    } catch (err: any) {
-      setBackupMessage({
-        type: 'error',
-        text: lang === 'ar'
-          ? `تعذر إرسال الإشعار التجريبي: ${err.message || err}`
-          : `Failed to dispatch test notification: ${err.message || err}`
-      });
-    } finally {
-      setIsSendingTestEmail(false);
-    }
-  };
-
-  const handleOpenEmailPreview = async () => {
-    setPreviewModalOpen(true);
-    setPreviewEmailLoading(true);
-    try {
-      const emailParam = user?.email || 'user@example.com';
-      const nameParam = user?.displayName || (lang === 'ar' ? 'مستخدم عرب برومبت' : 'ArabPrompt User');
-      const providerParam = backupConfig.provider || 'firebase';
-      const countParam = history.length || 15;
-      const res = await fetch(`/api/preview-backup-notification?userEmail=${encodeURIComponent(emailParam)}&userName=${encodeURIComponent(nameParam)}&provider=${encodeURIComponent(providerParam)}&itemCount=${countParam}&lang=${lang}`);
-      if (res.ok) {
-        const html = await res.text();
-        setPreviewEmailHtml(html);
-      } else {
-        throw new Error('Failed to load preview');
-      }
-    } catch (err) {
-      console.error('Preview error:', err);
-      setPreviewEmailHtml('<p>Error loading email preview</p>');
-    } finally {
-      setPreviewEmailLoading(false);
-    }
-  };
 
   const [csvDelimiter, setCsvDelimiter] = useState<',' | ';'>((() => {
     try {
@@ -378,47 +281,20 @@ export default function CloudBackupCenter({
       }
 
       const now = new Date().toISOString();
-      let emailNotice = '';
-
-      // Send Email Notification to Registered User if Enabled
-      if (user?.email && backupConfig.emailNotificationEnabled !== false) {
-        try {
-          const res = await dispatchCloudBackupNotification({
-            userEmail: user.email,
-            userName: user.displayName || undefined,
-            provider: backupConfig.provider || 'firebase',
-            itemCount: history.length,
-            backupType: 'manual',
-            lang
-          });
-          if (res.success) {
-            emailNotice = lang === 'ar'
-              ? ` 📧 وتم إرسال إشعار تأكيد الأمان إلى بريدك الإلكتروني (${user.email}).`
-              : ` 📧 Security confirmation email dispatched to (${user.email}).`;
-            backupConfig.lastNotificationSentTime = now;
-            backupConfig.lastNotificationEmail = user.email;
-          }
-        } catch (notifErr) {
-          console.warn('Backup email notification dispatch error:', notifErr);
-        }
-      }
-
-      handleConfigChange(backupConfig.provider, backupConfig.interval, true, backupConfig.emailNotificationEnabled !== false);
+      handleConfigChange(backupConfig.provider, backupConfig.interval, true);
       
       // Force update layout Config list
       const backupConfigSaved = {
         ...backupConfig,
-        lastBackupTime: now,
-        lastNotificationSentTime: backupConfig.lastNotificationSentTime,
-        lastNotificationEmail: backupConfig.lastNotificationEmail
+        lastBackupTime: now
       };
       saveBackupConfig(backupConfigSaved);
 
       setBackupMessage({
         type: 'success',
-        text: (lang === 'ar' 
+        text: lang === 'ar' 
           ? 'تم رفع وحفظ النسخة الاحتياطية السحابية بنجاح!' 
-          : 'Cloud backup upload and verification completed successfully!') + emailNotice
+          : 'Cloud backup upload and verification completed successfully!'
       });
     } catch (error: any) {
       console.error('Cloud backup error:', error);
@@ -926,132 +802,10 @@ export default function CloudBackupCenter({
                     </button>
                   </div>
 
-                  {/* Step 3: Email Security Notifications Service */}
-                  <div className="bg-stone-50 dark:bg-stone-850/60 border border-stone-200/85 dark:border-stone-800 rounded-2xl p-4.5 space-y-3 shadow-xs">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="text-right rtl:text-right">
-                        <span className="text-xs font-black text-stone-800 dark:text-stone-100 flex items-center gap-1.5">
-                          <Mail className="w-4 h-4 text-[#c29b40]" />
-                          <span>{lang === 'ar' ? '3. إشعارات الأمان بالبريد الإلكتروني عند اكتمال النسخ:' : '3. Email Security Notification Service:'}</span>
-                        </span>
-                        <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5 leading-relaxed">
-                          {lang === 'ar' 
-                            ? 'إرسال تقرير أمني موثق لبريدك الإلكتروني فور اكتمال أي عملية نسخ احتياطي ناجحة لتأكيد سلامة وحفظ البيانات.'
-                            : 'Automatically sends an encrypted security receipt to your registered email when backup succeeds.'}
-                        </p>
-                      </div>
-
-                      {user?.email && (
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
-                          <span className="text-[10px] font-bold text-stone-500">
-                            {backupConfig.emailNotificationEnabled !== false 
-                              ? (lang === 'ar' ? 'مفعل' : 'Enabled') 
-                              : (lang === 'ar' ? 'معطل' : 'Disabled')}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextVal = backupConfig.emailNotificationEnabled === false;
-                              handleConfigChange(backupConfig.provider, backupConfig.interval, backupConfig.isEnabled, nextVal);
-                              setBackupMessage({
-                                type: 'info',
-                                text: lang === 'ar'
-                                  ? (nextVal ? 'تم تفعيل إشعارات الأمان بالبريد الإلكتروني.' : 'تم تعطيل إشعارات الأمان بالبريد.')
-                                  : (nextVal ? 'Email backup security notifications enabled.' : 'Email backup notifications disabled.')
-                              });
-                            }}
-                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                              backupConfig.emailNotificationEnabled !== false ? 'bg-[#c29b40]' : 'bg-stone-300 dark:bg-stone-700'
-                            }`}
-                          >
-                            <span
-                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                backupConfig.emailNotificationEnabled !== false ? 'translate-x-[20px] rtl:-translate-x-[20px]' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {user?.email ? (
-                      <div className="pt-2 border-t border-stone-200/60 dark:border-stone-800 space-y-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-medium text-stone-600 dark:text-stone-300">
-                              {lang === 'ar' ? 'البريد المسجل المستلم:' : 'Registered Recipient:'}
-                            </span>
-                            <span className="font-bold text-amber-800 dark:text-amber-300 bg-[#c29b40]/10 px-2 py-0.5 rounded-lg border border-[#c29b40]/25 text-[11px] font-mono">
-                              {user.email}
-                            </span>
-                          </div>
-
-                          {backupConfig.lastNotificationSentTime && (
-                            <div className="text-[10px] text-stone-400 flex items-center gap-1 font-mono">
-                              <CheckCircle className="w-3 h-3 text-emerald-500" />
-                              <span>
-                                {lang === 'ar' 
-                                  ? `آخر إشعار: ${new Date(backupConfig.lastNotificationSentTime).toLocaleTimeString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US')}` 
-                                  : `Last sent: ${new Date(backupConfig.lastNotificationSentTime).toLocaleTimeString()}`}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Action Buttons for Email */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={handleSendTestEmailNotification}
-                            disabled={isSendingTestEmail}
-                            className="px-3 py-1.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-[#c29b40] text-stone-750 dark:text-stone-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60 shadow-3xs"
-                          >
-                            {isSendingTestEmail ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#c29b40]" />
-                            ) : (
-                              <Send className="w-3.5 h-3.5 text-[#c29b40]" />
-                            )}
-                            <span>{lang === 'ar' ? 'إرسال إشعار أمان تجريبي الآن' : 'Send Test Security Notice'}</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={handleOpenEmailPreview}
-                            className="px-3 py-1.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-[#c29b40] text-stone-750 dark:text-stone-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-3xs"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[#c29b40]" />
-                            <span>{lang === 'ar' ? 'معاينة شكل الإشعار الأمني' : 'Preview Email Receipt'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="pt-2 border-t border-stone-200/60 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
-                          <ShieldCheck className="w-4 h-4 text-amber-500 shrink-0" />
-                          <span>
-                            {lang === 'ar'
-                              ? 'خدمة إشعارات الأمان بالبريد متاحة للمستخدمين المسجلين. سجّل دخولك لتلقي تقارير الحفظ.'
-                              : 'Email security notices are available for registered users. Sign in to activate notifications.'}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            onOpenAuthModal?.('login');
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-[#c29b40] text-stone-950 font-black text-xs hover:bg-[#b08b35] transition shrink-0 cursor-pointer shadow-3xs"
-                        >
-                          {lang === 'ar' ? 'تسجيل الدخول بالبريد' : 'Sign In with Email'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Step 4: Trigger controls */}
+                  {/* Step 3: Trigger controls */}
                   <div className="pt-2 border-t border-stone-200/50">
                     <h5 className="text-[11px] font-bold text-stone-600 dark:text-stone-400 mb-2.5 text-right rtl:text-right">
-                      {lang === 'ar' ? '4. إجراءات الدفع والاسترجاع المباشر:' : '4. Manual Push or Pull Operations:'}
+                      {lang === 'ar' ? '3. إجراءات الدفع والاسترجاع المباشر:' : '3. Manual Push or Pull Operations:'}
                     </h5>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1235,63 +989,6 @@ export default function CloudBackupCenter({
         </div>
 
       </div>
-
-      {/* Modal: Live Email Preview Receipt */}
-      {previewModalOpen && (
-        <div 
-          className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-stone-950/75 backdrop-blur-xs animate-fadeIn"
-          onClick={() => setPreviewModalOpen(false)}
-        >
-          <div 
-            className="bg-stone-900 border border-stone-800 rounded-3xl max-w-xl w-full max-h-[88vh] overflow-hidden flex flex-col shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            dir={lang === 'ar' ? 'rtl' : 'ltr'}
-          >
-            <div className="px-5 py-3.5 border-b border-stone-800 flex items-center justify-between bg-stone-900 shrink-0">
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[#c29b40]" />
-                <h4 className="text-xs font-black text-stone-100">
-                  {lang === 'ar' ? 'معاينة رسالة الإشعار الأمني بالبريد' : 'Security Notice Email Preview'}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewModalOpen(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-100 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="p-3 sm:p-4 overflow-y-auto flex-1 bg-stone-950">
-              {previewEmailLoading ? (
-                <div className="py-16 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
-                  <Loader2 className="w-6 h-6 animate-spin text-[#c29b40]" />
-                  <span>{lang === 'ar' ? 'جاري تجهيز وتوليد معاينة الإشعار...' : 'Generating email preview...'}</span>
-                </div>
-              ) : (
-                <div 
-                  className="rounded-2xl overflow-hidden border border-stone-800 shadow-sm"
-                  dangerouslySetInnerHTML={{ __html: previewEmailHtml || '' }}
-                />
-              )}
-            </div>
-
-            <div className="px-5 py-3 border-t border-stone-800 bg-stone-900 flex items-center justify-between text-xs shrink-0">
-              <span className="text-[11px] text-stone-400 font-medium">
-                {lang === 'ar' ? 'رسالة أمنية رسمية وموثقة مشفرة تلقائياً' : 'Official encrypted transactional security notice'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreviewModalOpen(false)}
-                className="px-4 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold transition cursor-pointer"
-              >
-                {lang === 'ar' ? 'إغلاق المعاينة' : 'Close Preview'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

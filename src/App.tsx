@@ -26,9 +26,7 @@ import { getSubscription, UserSubscription, SubscriptionPlan, recordGenerationUs
 import { BackupMetadata, getBackupConfig, saveBackupConfig, searchGDriveBackup, uploadGDriveBackup, uploadDropboxBackup, backupToDropboxSimulated, backupToICloudSimulated, backupToCustomBackendSimulated } from './utils/cloudBackup';
 import { ActiveTab, PromptHistoryItem, ModelType, AppLanguage, SUPPORTED_LANGUAGES } from './types';
 import { ToastNotification } from './components/ToastNotification';
-import { GooglePlayGuideModal } from './components/GooglePlayGuideModal';
-import { OfflineIndicator } from './components/OfflineIndicator';
-import { Sparkles, Smartphone } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { initAuth, googleSignIn, logout } from './utils/firebaseAuth';
 import {
@@ -233,7 +231,6 @@ export default function App() {
   const [isCloudBackingUp, setIsCloudBackingUp] = useState(false);
   const [isCloudRestoring, setIsCloudRestoring] = useState(false);
   const [isBackupCenterOpen, setIsBackupCenterOpen] = useState(false);
-  const [isPlayGuideOpen, setIsPlayGuideOpen] = useState(false);
 
   const handleConfigChange = (
     newProvider: 'google-drive' | 'dropbox' | 'firebase' | 'icloud' | 'custom-backend' | null,
@@ -768,7 +765,6 @@ export default function App() {
         onOpenAuth={handleOpenAuth}
         subscription={subscription}
         onOpenCheckout={handleOpenCheckout}
-        onOpenPlayGuide={() => setIsPlayGuideOpen(true)}
       />
 
       {/* Main Tab Workspace container */}
@@ -963,17 +959,6 @@ export default function App() {
             />
           </div>
 
-          {/* Google Play App Button */}
-          <div className="flex justify-center gap-2 pt-1">
-            <button
-              onClick={() => setIsPlayGuideOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#916a24] dark:hover:text-amber-400 text-xs font-bold transition shadow-xs"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-[#c29b40]" />
-              <span>{lang === 'ar' ? 'تطبيق الهاتف ومتجر Google Play' : 'Google Play & Mobile App'}</span>
-            </button>
-          </div>
-
           <p className="text-[10px] text-stone-400">
             {lang === 'ar' 
               ? 'صنع بذكاء عبر نموذج Google Gemini © 2026' 
@@ -982,11 +967,6 @@ export default function App() {
         </div>
       </footer>
       <ToastNotification lang={lang} onOpenCheckout={handleOpenCheckout} />
-      <OfflineIndicator lang={lang} />
-      <GooglePlayGuideModal
-        isOpen={isPlayGuideOpen}
-        onClose={() => setIsPlayGuideOpen(false)}
-      />
       <CloudBackupCenter
         isOpen={isBackupCenterOpen}
         onClose={() => setIsBackupCenterOpen(false)}

@@ -50,9 +50,15 @@ export default function AdSensePlaceholder({
     let timeoutId: any;
     let checkInterval: any;
 
-    const testAdBlocker = () => {
-      if (typeof window === 'undefined') return false;
-      if ((window as any).isAdBlockActive) {
+    const testAdBlocker = async () => {
+      // 1. Check if window.adsbygoogle is blocked or missing
+      try {
+        const testRequest = new Request(
+          'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
+          { method: 'HEAD', mode: 'no-cors' }
+        );
+        await fetch(testRequest);
+      } catch (e) {
         setIsAdBlockDetected(true);
         setAdStatus('blocked');
         return true;
@@ -60,8 +66,9 @@ export default function AdSensePlaceholder({
       return false;
     };
 
-    const initAdSense = () => {
-      if (testAdBlocker()) return;
+    const initAdSense = async () => {
+      const blocked = await testAdBlocker();
+      if (blocked) return;
 
       if (!isPushed.current && adRef.current) {
         try {
@@ -72,10 +79,11 @@ export default function AdSensePlaceholder({
           }
         } catch (err: any) {
           console.debug('AdSense push caught:', err);
+          setAdStatus('unfilled');
         }
       }
 
-      // Check if the ad fills within 3 seconds
+      // Check if the ad fills within 2.5 seconds
       let attempts = 0;
       checkInterval = setInterval(() => {
         attempts += 1;
@@ -83,6 +91,7 @@ export default function AdSensePlaceholder({
         if (ins) {
           const status = ins.getAttribute('data-ad-status');
           const hasIframe = ins.querySelector('iframe') !== null;
+          const hasChildren = ins.children.length > 0;
           const height = ins.clientHeight;
 
           if (status === 'filled' || (hasIframe && height > 20)) {
@@ -98,8 +107,8 @@ export default function AdSensePlaceholder({
           }
         }
 
-        if (attempts >= 12) {
-          // Timeout elapsed without fill (common in staging preview URL or before approval)
+        if (attempts >= 10) {
+          // 2.5s elapsed without fill (common in dev environment or unapproved preview URL)
           clearInterval(checkInterval);
           setAdStatus((prev) => (prev === 'loading' ? 'unfilled' : prev));
         }
@@ -173,12 +182,12 @@ export default function AdSensePlaceholder({
       {/* Main Container */}
       <div className="p-2 sm:p-3 flex flex-col items-center justify-center relative w-full" style={{ minHeight: minHeightStyle }}>
         
-        {/* Real Google AdSense Tag - Always block display as mandated by Google AdSense */}
+        {/* Real Google AdSense Tag */}
         <ins
           ref={adRef}
           className="adsbygoogle"
           style={{
-            display: 'block',
+            display: adStatus === 'filled' ? 'block' : 'none',
             minWidth: '250px',
             minHeight: '90px',
             width: '100%'

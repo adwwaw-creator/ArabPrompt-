@@ -178,7 +178,7 @@ export default function Pricing({ lang, onNavigateTab, onOpenAuth, onOpenCheckou
                 {/* Dropdown Menu Modal */}
                 {isCurrencySelectorOpen && (
                   <div 
-                    className={`absolute z-50 mt-2 w-[calc(100vw-36px)] sm:w-96 max-w-sm p-3 rounded-2xl bg-white dark:bg-[#181715] border border-stone-200 dark:border-stone-800 shadow-2xl space-y-2.5 animate-in fade-in zoom-in-95 duration-150 ${isAr ? 'left-0 sm:right-auto' : 'right-0 sm:left-auto'}`}
+                    className={`absolute z-50 mt-2 w-80 sm:w-96 p-3 rounded-2xl bg-white dark:bg-[#181715] border border-stone-200 dark:border-stone-800 shadow-2xl space-y-2.5 animate-in fade-in zoom-in-95 duration-150 ${isAr ? 'left-0 sm:right-auto' : 'right-0 sm:left-auto'}`}
                   >
                     {/* Search filter */}
                     <div className="relative">
