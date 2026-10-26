@@ -17,10 +17,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { evaluatePrompt } from '../utils/promptEvaluator';
+import { AppLanguage } from '../types';
 
 interface PromptQualityScoreProps {
   promptText: string;
-  lang: 'ar' | 'en';
+  lang: AppLanguage;
 }
 
 export default function PromptQualityScore({ promptText, lang }: PromptQualityScoreProps) {

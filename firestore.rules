@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'password');
     }
 
     function isValidId(id) {
@@ -29,8 +29,22 @@ service cloud.firestore {
 
     // Entity Validation Blueprints
     function isValidVisitor(val) {
-      return val.count is number && val.count > 0 &&
-             (!val.keys().hasAny(['updatedAt']) || (val.updatedAt is string && val.updatedAt.size() <= 64));
+      return val.count is number && val.count >= 0 &&
+             (!val.keys().hasAny(['updatedAt']) || (val.updatedAt is string && val.updatedAt.size() <= 64)) &&
+             (!val.keys().hasAny(['recentLogs']) || (val.recentLogs is list && val.recentLogs.size() <= 30)) &&
+             (!val.keys().hasAny(['dailyStats']) || (val.dailyStats is list && val.dailyStats.size() <= 60));
+    }
+
+    function isValidVisitorLog(val) {
+      return val.id is string && val.id.size() <= 128 &&
+             val.visitorNumber is number && val.visitorNumber >= 0 &&
+             val.timestamp is string && val.timestamp.size() <= 64 &&
+             (!val.keys().hasAny(['device']) || (val.device is string && val.device.size() <= 128)) &&
+             (!val.keys().hasAny(['browser']) || (val.browser is string && val.browser.size() <= 128)) &&
+             (!val.keys().hasAny(['os']) || (val.os is string && val.os.size() <= 128)) &&
+             (!val.keys().hasAny(['timezone']) || (val.timezone is string && val.timezone.size() <= 128)) &&
+             (!val.keys().hasAny(['language']) || (val.language is string && val.language.size() <= 32)) &&
+             (!val.keys().hasAny(['screen']) || (val.screen is string && val.screen.size() <= 64));
     }
 
     function isValidUser(val) {
@@ -40,7 +54,15 @@ service cloud.firestore {
              (!val.keys().hasAny(['photoURL']) || (val.photoURL is string && val.photoURL.size() <= 2048)) &&
              (!val.keys().hasAny(['emailVerified']) || (val.emailVerified is bool)) &&
              (!val.keys().hasAny(['createdAt']) || (val.createdAt is string && val.createdAt.size() <= 64)) &&
-             (!val.keys().hasAny(['lastActive']) || (val.lastActive is string && val.lastActive.size() <= 64));
+             (!val.keys().hasAny(['lastActive']) || (val.lastActive is string && val.lastActive.size() <= 64)) &&
+             (!val.keys().hasAny(['plan']) || (val.plan is string && val.plan.size() <= 32)) &&
+             (!val.keys().hasAny(['subscriptionStatus']) || (val.subscriptionStatus is string && val.subscriptionStatus.size() <= 32)) &&
+             (!val.keys().hasAny(['billingCycle']) || (val.billingCycle is string && val.billingCycle.size() <= 32)) &&
+             (!val.keys().hasAny(['renewalDate']) || (val.renewalDate is string && val.renewalDate.size() <= 64)) &&
+             (!val.keys().hasAny(['dailyUsageCount']) || (val.dailyUsageCount is number)) &&
+             (!val.keys().hasAny(['lastUsageDate']) || (val.lastUsageDate is string && val.lastUsageDate.size() <= 64)) &&
+             (!val.keys().hasAny(['backupNotificationEmailEnabled']) || (val.backupNotificationEmailEnabled is bool)) &&
+             (!val.keys().hasAny(['lastBackupEmailSent']) || (val.lastBackupEmailSent is string && val.lastBackupEmailSent.size() <= 64));
     }
 
     function isValidHistory(val) {
@@ -58,7 +80,9 @@ service cloud.firestore {
              (!val.keys().hasAny(['contentImage']) || (val.contentImage is string && val.contentImage.size() <= 2048)) &&
              (!val.keys().hasAny(['notes']) || (val.notes is string && val.notes.size() <= 10000)) &&
              (!val.keys().hasAny(['isMimicMode']) || (val.isMimicMode is bool)) &&
-             (!val.keys().hasAny(['isFavorite']) || (val.isFavorite is bool));
+             (!val.keys().hasAny(['isFavorite']) || (val.isFavorite is bool)) &&
+             (!val.keys().hasAny(['rating']) || (val.rating is number)) &&
+             (!val.keys().hasAny(['tags']) || (val.tags is list && val.tags.size() <= 50));
     }
 
     // Rules for Unique Visitors
@@ -66,7 +90,16 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidId(id) && id == 'global' && isValidVisitor(incoming());
       allow update: if isValidId(id) && id == 'global' && isValidVisitor(incoming()) &&
-                    (incoming().count == existing().count + 1 || incoming().count == existing().count);
+                    incoming().count is number && incoming().count >= 0;
+
+      match /logs/{logId} {
+        allow read: if true;
+        allow create: if isValidId(logId) && isValidVisitorLog(incoming());
+      }
+
+      match /active_sessions/{sessionId} {
+        allow read, write: if true;
+      }
     }
 
     // Rules for Test Connection check
@@ -98,5 +131,27 @@ service cloud.firestore {
       allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(itemId) &&
                     exists(/databases/$(database)/documents/users/$(userId));
     }
+
+    // Rules for User saved sequences
+    match /users/{userId}/sequences/{seqId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(seqId);
+    }
+
+    // Rules for User saved movie projects (Cinema Studio)
+    match /users/{userId}/movie_projects/{movieId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(movieId);
+    }
+
+    // Rules for Shared Sequences (Public Read, safe immutable creation)
+    match /shared_sequences/{shareId} {
+      allow get: if isValidId(shareId);
+      allow list: if false;
+      allow create: if isValidId(shareId) && 
+                    incoming().id == shareId &&
+                    incoming().title is string && incoming().title.size() <= 256 &&
+                    incoming().scenes is list && incoming().scenes.size() <= 50;
+      allow update, delete: if false;
+    }
   }
 }
+

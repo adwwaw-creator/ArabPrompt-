@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.arabprompt.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7F:0E:52:91:7E:EA:E0:9F:BE:76:A6:E6:71:0B:0E:02:16:43:8E:18:04:15:49:A9:C7:CE:01:23:45"
+      ]
+    }
+  }
+]

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { 
   Camera, 
   Upload, 
@@ -12,6 +12,7 @@ import {
   Copy, 
   Check, 
   Cpu, 
+  PenTool,
   Trash2, 
   Sliders, 
   Search, 
@@ -22,14 +23,28 @@ import {
   ChevronRight,
   ArrowRight,
   Video,
-  Film
+  Film,
+  Palette,
+  Wand2,
+  ExternalLink,
+  Heart
 } from 'lucide-react';
-import { ModelType } from '../types';
+import { ModelType, AppLanguage } from '../types';
 import { showToast } from './ToastNotification';
+import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
+import AdSenseBanner from './AdSenseBanner';
+
+interface LearnedDna {
+  palette: string[];
+  medium: string;
+  hasLearned?: boolean;
+  masterPrompt?: string;
+}
 
 interface PromptReverserProps {
-  lang: 'ar' | 'en';
+  lang: AppLanguage;
   onSendToTester: (promptText: string) => void;
+  onNavigateToBuilder?: () => void;
   onLogPrompt?: (item: {
     originalText: string;
     optimizedText: string;
@@ -51,7 +66,7 @@ interface PromptReverserProps {
   };
 }
 
-export default function PromptReverser({ lang, onSendToTester, onLogPrompt, initialValues }: PromptReverserProps) {
+export default function PromptReverser({ lang, onSendToTester, onNavigateToBuilder, onLogPrompt, initialValues }: PromptReverserProps) {
   const [isMimicMode, setIsMimicMode] = useState(false);
   const [reverserMode, setReverserMode] = useState<'image' | 'mimic' | 'video'>('image');
   const [imageData, setImageData] = useState<string | null>(null);
@@ -72,6 +87,16 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
   const [copied, setCopied] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
 
+  // Learned Visual DNA extracted directly from the uploaded image
+  const [learnedDna, setLearnedDna] = useState<LearnedDna | null>(null);
+  const [copiedHex, setCopiedHex] = useState<string | null>(null);
+
+  // Apply learned style to custom new idea states
+  const [newCustomSubject, setNewCustomSubject] = useState('');
+  const [isApplyingStyle, setIsApplyingStyle] = useState(false);
+  const [appliedPromptResult, setAppliedPromptResult] = useState('');
+  const [copiedApplied, setCopiedApplied] = useState(false);
+
   // Initialize from initialValues when passed
   React.useEffect(() => {
     if (initialValues) {
@@ -82,6 +107,8 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
       setNotes(initialValues.notes);
       setExtractedPrompt('');
       setErrorMsg('');
+      setLearnedDna(null);
+      setAppliedPromptResult('');
     }
   }, [initialValues]);
   
@@ -96,10 +123,45 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
     if (match && match[1]) {
       textToCopy = match[1].trim();
     }
-    navigator.clipboard.writeText(textToCopy);
+    navigator.clipboard.writeText(appendSiteUrlToPrompt(textToCopy));
     setCopied(true);
-    showToast(lang === 'ar' ? '✓ تم نسخ الأمر المستخرج للحافظة!' : '✓ Extracted prompt copied to clipboard!');
+    showToast(lang === 'ar' ? '✓ تم نسخ الأمر المستخرج مع رابط المنصة!' : '✓ Extracted prompt copied to clipboard with ArabPrompt link!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyHex = (hex: string) => {
+    navigator.clipboard.writeText(hex);
+    setCopiedHex(hex);
+    showToast(lang === 'ar' ? `✓ تم نسخ كود اللون: ${hex}` : `✓ Copied color code: ${hex}`);
+    setTimeout(() => setCopiedHex(null), 2000);
+  };
+
+  const handleApplyLearnedStyle = async () => {
+    if (!newCustomSubject.trim()) {
+      showToast(lang === 'ar' ? 'يرجى كتابة فكرة أو موضوع لتطبيق النمط عليه!' : 'Please enter a subject to apply the learned style onto!', true);
+      return;
+    }
+    setIsApplyingStyle(true);
+    setAppliedPromptResult('');
+    try {
+      const res = await fetch('/api/apply-learned-style', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newSubject: newCustomSubject,
+          learnedDna,
+          targetAiModel: 'FLUX.1 / Midjourney v6'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to apply learned style');
+      const data = await res.json();
+      setAppliedPromptResult(data.appliedPrompt);
+      showToast(lang === 'ar' ? '✓ تم تطبيق النمط البصري المتعلم على فكرتك بنجاح!' : '✓ Applied learned style to your new idea!');
+    } catch (e: any) {
+      showToast(lang === 'ar' ? 'تعذر تطبيق النمط حالياً' : 'Could not apply style', true);
+    } finally {
+      setIsApplyingStyle(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -321,11 +383,6 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
       return;
     }
 
-    // Trigger header auto-hide to clear up screen space
-    try {
-      window.dispatchEvent(new CustomEvent('hide-header'));
-    } catch (err) {}
-
     setLoading(true);
     setErrorMsg('');
     setExtractedPrompt('');
@@ -354,8 +411,20 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
       }
 
       const data = await response.json();
-      setExtractedPrompt(data.reversePrompt);
+      const formattedReversed = appendSiteUrlToPrompt(data.reversePrompt);
+      setExtractedPrompt(formattedReversed);
       setIsFallback(!!data.isFallback);
+
+      if (data.learnedDna) {
+        setLearnedDna(data.learnedDna);
+      } else {
+        const hexMatches = data.reversePrompt.match(/#[0-9A-Fa-f]{6}\b/g);
+        setLearnedDna({
+          palette: hexMatches ? (Array.from(new Set(hexMatches)) as string[]).slice(0, 5) : ['#1E293B', '#D97706', '#3B82F6', '#F8FAFC'],
+          medium: targetStyle || 'Cinematic High-Fidelity Render',
+          hasLearned: true
+        });
+      }
 
       // Log the action to history
       if (onLogPrompt) {
@@ -421,7 +490,20 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10" id="prompt-reverser-panel">
       
       {/* Intro Header */}
-      <div className="text-center max-w-3xl mx-auto mb-10">
+      <div className="text-center max-w-3xl mx-auto mb-8">
+        {onNavigateToBuilder && (
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={onNavigateToBuilder}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 hover:text-[#916a24] text-xs font-bold transition-all shadow-xs cursor-pointer hover:border-[#c29b40]/50 group"
+            >
+              <PenTool className="w-3.5 h-3.5 text-[#c29b40] group-hover:scale-110 transition-transform" />
+              <span>{lang === 'ar' ? 'الذهاب إلى مُهندس ومصمم الأوامر' : 'Go to Prompt Designer / Builder'}</span>
+              <span className="text-[10px] text-stone-400 group-hover:text-[#c29b40] transition-colors">{lang === 'ar' ? '←' : '→'}</span>
+            </button>
+          </div>
+        )}
         <h2 className="text-3xl font-black text-stone-900 tracking-tight sm:text-4xl text-center flex items-center justify-center gap-2">
           <Sparkles className="w-7 h-7 text-[#c29b40]" />
           <span>{lang === 'ar' ? 'الهندسة العكسية ونقل الأنماط' : 'Reverse Prompt Engineering & Style Mimicry'}</span>
@@ -433,9 +515,9 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
         </p>
       </div>
 
-      {/* Mode Selector Tabs (Elegant & Minimalistic Switch) */}
+      {/* Mode Selector Tabs (Enlarged & Clear Switch) */}
       <div className="flex items-center justify-center mb-10">
-        <div className="inline-flex p-1 bg-stone-100 rounded-2xl border border-stone-200 shadow-sm flex-wrap gap-1 sm:gap-0">
+        <div className="inline-flex p-1.5 sm:p-2 bg-stone-100 dark:bg-stone-800/80 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm flex-wrap gap-1.5 justify-center">
           <button
             onClick={() => {
               setReverserMode('image');
@@ -444,10 +526,10 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
               setErrorMsg('');
               setImageData(null);
             }}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+            className={`px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl text-sm sm:text-base md:text-lg font-black transition-all duration-200 cursor-pointer shadow-xs ${
               reverserMode === 'image'
-                ? 'bg-white text-stone-900 shadow-sm font-black border border-stone-200/50'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-white text-stone-950 shadow-md font-black border border-stone-200/80 dark:bg-stone-900 dark:text-stone-100 dark:border-stone-700'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-white/50'
             }`}
           >
             {lang === 'ar' ? 'استخراج برومبت من صورة' : 'Standard Reverse Prompt'}
@@ -461,13 +543,14 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
               setErrorMsg('');
               setImageData(null);
             }}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+            className={`px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl text-sm sm:text-base md:text-lg font-black transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-xs ${
               reverserMode === 'mimic'
-                ? 'bg-[#c29b40] text-white shadow-sm font-black'
-                : 'text-stone-500 hover:text-stone-850'
+                ? 'bg-[#c29b40] text-white shadow-md font-black border border-[#b08b34]'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-white/50'
             }`}
           >
-            ✨ {lang === 'ar' ? 'نسخ ودمج الأسلوب البصري (صورتين)' : 'Style Transfer & Mimicry (2 Images)'}
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-200" />
+            <span>{lang === 'ar' ? 'نسخ ودمج الأسلوب البصري (صورتين)' : 'Style Transfer & Mimicry (2 Images)'}</span>
           </button>
 
           <button
@@ -478,13 +561,13 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
               setErrorMsg('');
               setImageData(null);
             }}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+            className={`px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl text-sm sm:text-base md:text-lg font-black transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-xs ${
               reverserMode === 'video'
-                ? 'bg-stone-900 text-white shadow-sm font-black'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-stone-950 text-white shadow-md font-black border border-stone-800'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-white/50'
             }`}
           >
-            <Video className="w-3.5 h-3.5 text-[#c29b40]" />
+            <Video className="w-4 h-4 sm:w-5 sm:h-5 text-[#c29b40]" />
             <span>{lang === 'ar' ? 'التصميم العكسي للفيديو' : 'Video Reverse Engineering'}</span>
           </button>
         </div>
@@ -834,29 +917,176 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
                   </p>
                 </div>
               ) : loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-8 h-8 rounded-full border-2 border-[#c29b40]/10 border-t-[#c29b40] animate-spin mb-4" />
-                  <p className="text-xs font-bold text-stone-600">
-                    {lang === 'ar' 
-                      ? (reverserMode === 'video'
-                        ? 'يقوم محرك Gemini بدراسة المنحنيات الحركية ومسارات الكاميرا للفيديو...'
-                        : reverserMode === 'mimic' 
-                          ? 'يقوم محرك دمج الأنماط بدراسة ومطابقة بصريات الصورتين معاً...' 
-                          : 'يقوم محرك Gemini بفحص تفاصيل بكسلات صورتك...')
-                      : (reverserMode === 'video'
-                        ? 'Gemini is evaluating motion curves, camera paths, and lighting layers of your video clip...'
-                        : reverserMode === 'mimic' 
-                          ? 'Gemini is running style fusion algorithm on both images...' 
-                          : 'Gemini is dissecting image layers...')}
-                  </p>
-                  <p className="text-[10px] text-stone-400 mt-1.5 max-w-[220px] leading-relaxed mx-auto">
-                    {lang === 'ar' 
-                      ? 'يستغرق الفك والدمج ما بين ٤ إلى ٩ ثواني لتحقيق التوازن التناسقي الهندسي للحركية.' 
-                      : 'Deconstruction and style blending takes 4 to 9 seconds to balance aesthetic layers and structural bounds.'}
-                  </p>
+                <div className="flex-1 flex flex-col items-center justify-center py-6 px-2 text-center space-y-4">
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full border-4 border-[#c29b40]/25 border-t-[#c29b40] animate-spin" />
+                      <Sparkles className="w-5 h-5 text-[#c29b40] absolute inset-0 m-auto animate-pulse" />
+                    </div>
+
+                    <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/15 border border-[#c29b40]/35 text-[#916a24] font-black text-xs animate-pulse">
+                      <span>⏳</span>
+                      <span>{lang === 'ar' ? 'انتظر... جاري التحليل واستخراج البرومبت' : 'Please wait... Analyzing & extracting prompt'}</span>
+                    </div>
+
+                    <p className="text-xs font-bold text-stone-700">
+                      {lang === 'ar' 
+                        ? (reverserMode === 'video'
+                          ? 'يقوم محرك Gemini بدراسة المنحنيات الحركية ومسارات الكاميرا للفيديو...'
+                          : reverserMode === 'mimic' 
+                            ? 'يقوم محرك دمج الأنماط بدراسة ومطابقة بصريات الصورتين معاً...' 
+                            : 'يقوم محرك Gemini بفحص تفاصيل بكسلات صورتك...')
+                        : (reverserMode === 'video'
+                          ? 'Gemini is evaluating motion curves, camera paths, and lighting layers...'
+                          : reverserMode === 'mimic' 
+                            ? 'Gemini is running style fusion algorithm on both images...' 
+                            : 'Gemini is dissecting image layers...')}
+                    </p>
+                  </div>
+
+                  {/* Support Request Banner */}
+                  <div className="w-full max-w-md mx-auto p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#c29b40]/15 to-amber-500/10 border border-[#c29b40]/40 shadow-xs text-center space-y-1.5 animate-in fade-in">
+                    <div className="flex items-center justify-center gap-1.5 text-xs font-black text-[#916a24]">
+                      <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 animate-pulse" />
+                      <span>
+                        {lang === 'ar' 
+                          ? 'طلب دعم: مشاهدتك للإشهار تدعم استمرار المنصة مجاناً ❤️' 
+                          : 'Support Us: Viewing this ad keeps ArabPrompt 100% free ❤️'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-600 leading-relaxed font-medium">
+                      {lang === 'ar' 
+                        ? 'المنصة مجانية 100%. دعمك بمشاهدة الإعلان أثناء انتظار معالجة الصورة يساعدنا في استمرار الخدمة مجاناً للجميع.' 
+                        : 'ArabPrompt is 100% free. Your support by viewing this ad while processing helps keep the service free for all.'}
+                    </p>
+                  </div>
+
+                  {/* Google AdSense Banner */}
+                  <div className="w-full max-w-md mx-auto">
+                    <AdSenseBanner
+                      client="ca-pub-3312377428939400"
+                      lang={lang}
+                      showPlaceholderBadge={true}
+                      minHeight={110}
+                    />
+                  </div>
                 </div>
               ) : extractedPrompt ? (
                 <div className="space-y-4 flex-1 flex flex-col justify-between">
+                  {/* Learned Visual DNA Card */}
+                  {learnedDna && learnedDna.palette && (
+                    <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 rounded-2xl border border-amber-300/60 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black text-[#916a24] flex items-center gap-1.5">
+                          <Palette className="w-3.5 h-3.5" />
+                          <span>{lang === 'ar' ? 'البصمة البصرية المستخلصة والمُتعلَّمة من الصورة' : 'Learned Visual Style DNA'}</span>
+                        </span>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100/80 text-amber-900 border border-amber-200">
+                          {learnedDna.medium || 'Cinematic Style'}
+                        </span>
+                      </div>
+
+                      {/* Color Palette Swatches */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] text-stone-600 font-bold">{lang === 'ar' ? 'الألوان المستخلصة:' : 'Palette:'}</span>
+                        {learnedDna.palette.map((color, cIdx) => (
+                          <button
+                            key={cIdx}
+                            type="button"
+                            onClick={() => handleCopyHex(color)}
+                            className="group flex items-center gap-1.5 px-2 py-1 bg-white rounded-lg border border-stone-200 hover:border-[#c29b40] shadow-2xs transition-all cursor-pointer text-[10px] font-mono text-stone-700"
+                            title={lang === 'ar' ? `اضغط لنسخ الكود: ${color}` : `Click to copy: ${color}`}
+                          >
+                            <span className="w-3 h-3 rounded-full shadow-2xs border border-black/10 shrink-0" style={{ backgroundColor: color }} />
+                            <span>{color}</span>
+                            {copiedHex === color && <Check className="w-2.5 h-2.5 text-emerald-600" />}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Transfer Style to New Idea Sub-Panel */}
+                      <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                        <label className="block text-[10px] font-bold text-stone-700 flex items-center gap-1">
+                          <Wand2 className="w-3 h-3 text-[#c29b40]" />
+                          <span>{lang === 'ar' ? 'تطبيق هذا الأسلوب المُتعلَّم على فكرة جديدة تماماً:' : 'Transfer this learned style to a new custom idea:'}</span>
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newCustomSubject}
+                            onChange={(e) => setNewCustomSubject(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleApplyLearnedStyle(); }}
+                            placeholder={lang === 'ar' ? 'اكتب فكرة جديدة (مثال: رائد فضاء في سوق شعبي، سيارة رياضية...)' : 'Type a new subject (e.g. astronaut in traditional bazaar, sports car...)'}
+                            className="flex-1 text-xs rounded-xl border border-stone-300 p-2 bg-white text-stone-800 placeholder-stone-400 focus:outline-none focus:border-[#c29b40]"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyLearnedStyle}
+                            disabled={isApplyingStyle || !newCustomSubject.trim()}
+                            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                              isApplyingStyle || !newCustomSubject.trim()
+                                ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                                : 'bg-[#c29b40] hover:bg-[#a6802f] text-stone-950'
+                            }`}
+                          >
+                            {isApplyingStyle ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Wand2 className="w-3.5 h-3.5" />
+                            )}
+                            <span>{lang === 'ar' ? 'تطبيق' : 'Apply'}</span>
+                          </button>
+                        </div>
+
+                        {/* Applied Style Result Output */}
+                        {appliedPromptResult && (
+                          <div className="p-3 bg-white rounded-xl border border-amber-300/80 space-y-2 animate-in fade-in">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black text-emerald-800 flex items-center gap-1">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>{lang === 'ar' ? 'البرومبت المولد بالأسلوب المتعلم:' : 'Generated with Learned Style:'}</span>
+                              </span>
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    let txt = appliedPromptResult;
+                                    const m = appliedPromptResult.match(/```([\s\S]*?)```/);
+                                    if (m && m[1]) txt = m[1].trim();
+                                    navigator.clipboard.writeText(appendSiteUrlToPrompt(txt));
+                                    setCopiedApplied(true);
+                                    showToast(lang === 'ar' ? '✓ تم نسخ الأمر المولد بالأسلوب المتعلم!' : '✓ Copied applied prompt!');
+                                    setTimeout(() => setCopiedApplied(false), 2000);
+                                  }}
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center gap-1 cursor-pointer"
+                                >
+                                  {copiedApplied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                  <span>{lang === 'ar' ? 'نسخ' : 'Copy'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    let txt = appliedPromptResult;
+                                    const m = appliedPromptResult.match(/```([\s\S]*?)```/);
+                                    if (m && m[1]) txt = m[1].trim();
+                                    onSendToTester(txt);
+                                  }}
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#c29b40] text-stone-950 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <PenTool className="w-3 h-3" />
+                                  <span>{lang === 'ar' ? 'تعديل' : 'Edit'}</span>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-[11px] font-sans text-stone-800 leading-relaxed whitespace-pre-wrap max-h-[140px] overflow-y-auto bg-stone-50 p-2 rounded-lg border border-stone-200" dir="auto">
+                              {appliedPromptResult}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Prompt box */}
                   <div className="flex-1 bg-stone-50 rounded-xl p-4 border border-stone-200 font-sans text-stone-800 text-xs leading-relaxed whitespace-pre-wrap max-h-[420px] overflow-y-auto text-right rtl:text-right" dir="auto">
                     {extractedPrompt}
@@ -902,8 +1132,8 @@ export default function PromptReverser({ lang, onSendToTester, onLogPrompt, init
                       }}
                       className="flex-1 min-w-[120px] py-2.5 px-3 bg-[#c29b40] hover:bg-[#b08b33] active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 shadow"
                     >
-                      <Cpu className="w-4 h-4 text-[#fff3d6] animate-pulse" />
-                      <span>{lang === 'ar' ? 'تجربة في المختبر' : 'Test in Playground'}</span>
+                      <PenTool className="w-4 h-4 text-[#fff3d6]" />
+                      <span>{lang === 'ar' ? 'تعديل في مُهندس الأوامر' : 'Open in Prompt Builder'}</span>
                     </button>
                   </div>
                 </div>

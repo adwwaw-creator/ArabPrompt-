@@ -20,13 +20,14 @@ import {
   RotateCcw,
   Info
 } from 'lucide-react';
+import { AppLanguage } from '../types';
 
 interface VariableHighlighterEditorProps {
   value: string;
   onChange: (val: string) => void;
   dir: 'ltr' | 'rtl';
   placeholder?: string;
-  lang: 'ar' | 'en';
+  lang: AppLanguage;
 }
 
 export default function VariableHighlighterEditor({
@@ -37,11 +38,17 @@ export default function VariableHighlighterEditor({
   lang,
 }: VariableHighlighterEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
 
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [isCopiedAll, setIsCopiedAll] = useState(false);
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
+
+  const detectedVariables = useMemo(() => {
+    if (!value) return [];
+    const matches = value.match(/\[[^[\]\r\n]+\]/g);
+    if (!matches) return [];
+    return Array.from(new Set(matches)).slice(0, 15);
+  }, [value]);
 
   // Translation helpers
   const t = {
@@ -60,42 +67,6 @@ export default function VariableHighlighterEditor({
     words: lang === 'ar' ? 'كلمة' : 'words',
     emptyPreview: lang === 'ar' ? 'اكتب بعض الأوامر أو النصوص في علامة تبويب "تعديل" لتراها منسقة بشكل تفاعلي هنا.' : 'Type some content in the Edit tab to see it formatted interactively here.',
     placeholderText: placeholder || (lang === 'ar' ? 'اكتب البرومبت هنا واستخدم [المتغيرات] المحاطة بأقواس...' : 'Write prompt here and wrap [variables] in brackets...'),
-  };
-
-  // Synchronize scrolling of textarea to backdrop element
-  const handleScroll = () => {
-    if (textareaRef.current && backdropRef.current) {
-      backdropRef.current.scrollTop = textareaRef.current.scrollTop;
-      backdropRef.current.scrollLeft = textareaRef.current.scrollLeft;
-    }
-  };
-
-  const renderHighlighted = (text: string) => {
-    if (!text) {
-      return (
-        <span className="text-stone-300 italic">
-          {t.placeholderText}
-        </span>
-      );
-    }
-
-    // Split text by variables enclosing brackets matching [var_name]
-    const segments = text.split(/(\[[^[\]\r\n]+\])/g);
-
-    return segments.map((seg, i) => {
-      if (seg.startsWith('[') && seg.endsWith(']')) {
-        return (
-          <mark
-            key={i}
-            className="inline-block px-1.5 py-0.5 mx-0.5 rounded bg-amber-500/15 text-amber-800 border border-amber-500/30 font-bold select-all font-mono text-[11px]"
-            style={{ textShadow: 'none' }}
-          >
-            {seg}
-          </mark>
-        );
-      }
-      return <span key={i}>{seg}</span>;
-    });
   };
 
   // Insert formatting template at cursor position
@@ -221,10 +192,6 @@ export default function VariableHighlighterEditor({
       }
     };
   }, [copiedVar, lang]);
-
-  useEffect(() => {
-    handleScroll();
-  }, [value]);
 
   return (
     <div className="relative border border-stone-250 rounded-2xl bg-white focus-within:ring-2 focus-within:ring-[#c29b40]/25 focus-within:border-[#c29b40] overflow-hidden flex flex-col group min-h-[380px] shadow-sm">
@@ -384,31 +351,13 @@ export default function VariableHighlighterEditor({
       {/* 3. Editor Workspace */}
       <div className="flex-1 min-h-[350px] relative flex flex-col bg-[#fdfdfc]">
         {viewMode === 'edit' ? (
-          <>
-            {/* Real-time Backdrop highlighters */}
-            <div
-              ref={backdropRef}
-              className="absolute inset-0 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words overflow-y-auto select-none pointer-events-none text-stone-700/90"
-              style={{
-                boxSizing: 'border-box',
-                fontFamily: 'JetBrains Mono, SFMono-Regular, Consolas, monospace',
-                letterSpacing: 'normal',
-                wordSpacing: 'normal',
-              }}
-              dir={dir}
-            >
-              {renderHighlighted(value)}
-              <span className="invisible block h-4">{"\n"}</span>
-            </div>
-
-            {/* Editing Translucent text area overlay */}
+          <div className="flex-1 flex flex-col relative">
             <textarea
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              onScroll={handleScroll}
               placeholder={t.placeholderText}
-              className="absolute inset-0 w-full h-full p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words bg-transparent text-transparent caret-stone-855 border-none outline-none resize-none overflow-y-auto focus:ring-0 select-text"
+              className="w-full flex-1 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words bg-transparent text-stone-800 caret-[#c29b40] border-none outline-none resize-none overflow-y-auto focus:ring-0 select-text min-h-[300px]"
               style={{
                 boxSizing: 'border-box',
                 fontFamily: 'JetBrains Mono, SFMono-Regular, Consolas, monospace',
@@ -417,7 +366,35 @@ export default function VariableHighlighterEditor({
               }}
               dir={dir}
             />
-          </>
+            {/* Detected Variables Quick Toolbar */}
+            {detectedVariables.length > 0 && (
+              <div className="px-4 py-2 bg-stone-50/80 border-t border-stone-200/50 flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-[10px] font-bold text-stone-400">
+                  {lang === 'ar' ? 'المتغيرات المكتشفة:' : 'Detected Variables:'}
+                </span>
+                {detectedVariables.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(v);
+                      setCopiedVar(v);
+                      setTimeout(() => setCopiedVar(null), 1500);
+                    }}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[10px] font-bold transition-all cursor-pointer ${
+                      copiedVar === v
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-amber-500/10 text-amber-800 border border-amber-500/25 hover:bg-amber-500/20'
+                    }`}
+                    title={lang === 'ar' ? `نسخ ${v}` : `Copy ${v}`}
+                  >
+                    <span>{v}</span>
+                    {copiedVar === v && <Check className="w-2.5 h-2.5 text-emerald-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           /* Live Markdown Preview */
           <div 

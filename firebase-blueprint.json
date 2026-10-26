@@ -7,12 +7,19 @@
       "properties": {
         "count": {
           "type": "number",
-          "description": "The current verified unique visitor count"
+          "description": "The current verified unique visitor count starting from 0"
         },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
           "description": "Timestamp when the counter was last incremented"
+        },
+        "recentLogs": {
+          "type": "array",
+          "description": "List of recent genuine visitor sessions to know who entered the site",
+          "items": {
+            "type": "object"
+          }
         }
       },
       "required": ["count"]
@@ -52,6 +59,32 @@
           "type": "string",
           "format": "date-time",
           "description": "Timestamp when user was last active"
+        },
+        "plan": {
+          "type": "string",
+          "description": "Active subscription tier: free, pro, or studio"
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "description": "Subscription status: active, cancelled, or trial"
+        },
+        "billingCycle": {
+          "type": "string",
+          "description": "Billing cycle: monthly or annual"
+        },
+        "renewalDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Next renewal or expiration timestamp"
+        },
+        "backupNotificationEmailEnabled": {
+          "type": "boolean",
+          "description": "Whether user receives email receipts on successful cloud backups"
+        },
+        "lastBackupEmailSent": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the last backup security confirmation email was sent"
         }
       },
       "required": ["uid", "email"]
@@ -124,6 +157,188 @@
         }
       },
       "required": ["id", "timestamp", "originalText", "optimizedText", "model", "tone", "category"]
+    },
+    "sequences": {
+      "title": "Video Sequence Projects",
+      "description": "Saved video sequences and storyboards to resume work later",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique sequence project ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-friendly project title"
+        },
+        "concept": {
+          "type": "string",
+          "description": "The main narrative or concept"
+        },
+        "anchorStyle": {
+          "type": "string",
+          "description": "Overarching visual anchor style"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "Target video aspect ratio"
+        },
+        "transitionEffect": {
+          "type": "string",
+          "description": "Transition effect between clips"
+        },
+        "scenes": {
+          "type": "array",
+          "description": "List of scene prompt items in the sequence",
+          "items": {
+            "type": "object"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when sequence was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when sequence was last updated"
+        }
+      },
+      "required": ["id", "title", "concept", "scenes", "createdAt", "updatedAt"]
+    },
+    "movie_projects": {
+      "title": "Cinema Movie Projects",
+      "description": "User saved cinematic screenplay projects with 10-second scene pacing, facial consistency anchors, and dialogue lip-sync",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique movie project ID"
+        },
+        "titleAr": {
+          "type": "string",
+          "description": "Arabic title of the film"
+        },
+        "titleEn": {
+          "type": "string",
+          "description": "English title of the film"
+        },
+        "concept": {
+          "type": "string",
+          "description": "Original movie premise or concept"
+        },
+        "genre": {
+          "type": "string",
+          "description": "Film genre preset"
+        },
+        "visualStyle": {
+          "type": "string",
+          "description": "Visual cinematography aesthetic preset"
+        },
+        "targetAiModel": {
+          "type": "string",
+          "description": "Target video generation AI model"
+        },
+        "loglineAr": {
+          "type": "string",
+          "description": "Arabic core story logline"
+        },
+        "loglineEn": {
+          "type": "string",
+          "description": "English core story logline"
+        },
+        "storySynopsisAr": {
+          "type": "string",
+          "description": "Arabic story narrative synopsis"
+        },
+        "storySynopsisEn": {
+          "type": "string",
+          "description": "English story narrative synopsis"
+        },
+        "characterAnchor": {
+          "type": "object",
+          "description": "Master character facial consistency anchor"
+        },
+        "scenes": {
+          "type": "array",
+          "description": "10-second cinematic scenes list with screenplay beats, dialogue, lip-sync, and video prompts",
+          "items": {
+            "type": "object"
+          }
+        },
+        "totalDurationSeconds": {
+          "type": "number",
+          "description": "Total duration in seconds (scenes count * 10)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when movie was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when movie was last updated"
+        }
+      },
+      "required": ["id", "titleAr", "concept", "scenes", "createdAt", "updatedAt"]
+    },
+    "shared_sequences": {
+      "title": "Shared Sequence Snapshots",
+      "description": "Publicly shareable immutable sequence snapshots for cross-user prompt sharing",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique share ID"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of sequence: storyboard or cinema"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the shared sequence"
+        },
+        "concept": {
+          "type": "string",
+          "description": "Core narrative concept"
+        },
+        "anchorStyle": {
+          "type": "string",
+          "description": "Visual anchor style or aesthetic preset"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "Aspect ratio"
+        },
+        "transitionEffect": {
+          "type": "string",
+          "description": "Transition effect"
+        },
+        "scenes": {
+          "type": "array",
+          "description": "List of scenes with prompts",
+          "items": {
+            "type": "object"
+          }
+        },
+        "characterAnchor": {
+          "type": "object",
+          "description": "Optional character face anchor for cinema projects"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Optional display name of creator"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of creation"
+        }
+      },
+      "required": ["id", "title", "scenes", "createdAt"]
     }
   },
   "firestore": {
@@ -138,6 +353,18 @@
     "users/{userId}/history/{itemId}": {
       "schema": "history",
       "description": "User specific prompt history log saved to the cloud"
+    },
+    "users/{userId}/sequences/{seqId}": {
+      "schema": "sequences",
+      "description": "User specific saved video sequences and storyboards"
+    },
+    "users/{userId}/movie_projects/{movieId}": {
+      "schema": "movie_projects",
+      "description": "User specific Cinema Movie Projects with 10s screenplay and character face anchors"
+    },
+    "shared_sequences/{shareId}": {
+      "schema": "shared_sequences",
+      "description": "Publicly readable immutable sequence snapshots for sharing unique links"
     }
   }
 }

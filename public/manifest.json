@@ -1,0 +1,53 @@
+{
+  "id": "/",
+  "name": "Arabiprompt AI Studio",
+  "short_name": "Arabiprompt",
+  "description": "Arabiprompt AI Studio offers AI tools for generating and editing images, prompts, and videos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "categories": [
+    "productivity",
+    "utilities",
+    "photo"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Arabiprompt Mobile App"
+    },
+    {
+      "src": "/icons/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Arabiprompt Studio Workspace"
+    }
+  ]
+}

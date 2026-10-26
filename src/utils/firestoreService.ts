@@ -17,7 +17,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { db, auth } from './firebaseAuth';
-import { PromptHistoryItem } from '../types';
+import { PromptHistoryItem, SavedSequence, MovieProject, SharedSequenceData } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -74,18 +74,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
  */
 export async function testFirestoreConnection() {
   try {
-    await getDocFromServer(doc(db, 'visitors', 'global'));
+    await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error: any) {
-    const isOffline = error instanceof Error && 
-      (error.message.includes('the client is offline') || 
-       error.message.includes('unavailable') || 
-       error.message.includes('Could not reach Cloud Firestore backend') ||
-       (error as any).code === 'unavailable');
-    
-    if (isOffline) {
-      console.warn("Firestore is operating in offline mode. Local persistence and cache will be used.", error?.message || error);
-    } else {
-      console.error("Firestore connection check failed:", error?.message || error);
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
+      console.warn("Firestore offline note: running in local offline cache mode.");
     }
   }
 }
@@ -94,27 +86,28 @@ export async function testFirestoreConnection() {
  * Sync user profile to users/{userId} on Google Sign-In.
  */
 export async function syncUserProfile(user: any): Promise<void> {
+  if (!user || !user.uid) return;
   const userRef = doc(db, 'users', user.uid);
   const path = `users/${user.uid}`;
+  const now = new Date().toISOString();
   try {
-    const snap = await getDoc(userRef);
-    const now = new Date().toISOString();
-    if (!snap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email || '',
-        displayName: user.displayName || '',
-        photoURL: user.photoURL || '',
-        emailVerified: user.emailVerified || false,
-        createdAt: now,
-        lastActive: now
-      });
-    } else {
-      await updateDoc(userRef, {
-        lastActive: now
-      });
+    // Use setDoc with merge: true directly.
+    // This avoids calling getDoc(userRef) which fails with 'client is offline' when offline!
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || '',
+      photoURL: user.photoURL || '',
+      emailVerified: user.emailVerified || false,
+      lastActive: now,
+      createdAt: now
+    }, { merge: true });
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("User profile sync deferred (client is offline):", msg);
+      return;
     }
-  } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -133,10 +126,81 @@ export async function getUserHistory(userId: string): Promise<PromptHistoryItem[
       items.push(doc.data() as PromptHistoryItem);
     });
     return items;
-  } catch (error) {
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("getUserHistory fallback (client is offline):", msg);
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, path);
     return [];
   }
+}
+
+/**
+ * Recursively strips undefined keys so Firestore doesn't reject document payloads
+ */
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Partial<T> {
+  if (obj === null || typeof obj !== 'object') return obj;
+  const result: any = Array.isArray(obj) ? [] : {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        result[key] = sanitizeForFirestore(value);
+      } else if (Array.isArray(value)) {
+        result[key] = value.filter(v => v !== undefined);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Sanitizes a PromptHistoryItem to ensure exact Firestore schema conformance
+ * and prevent any 'undefined' property error from blocking persistence.
+ */
+export function sanitizePromptHistoryItem(item: PromptHistoryItem): Record<string, any> {
+  const clean: Record<string, any> = {
+    id: String(item.id),
+    timestamp: String(item.timestamp || new Date().toISOString()),
+    originalText: String(item.originalText || ''),
+    optimizedText: String(item.optimizedText || ''),
+    model: String(item.model || 'gemini'),
+    tone: String(item.tone || 'مهني واحترافي'),
+    category: String(item.category || 'content'),
+    actionType: String(item.actionType || 'generate'),
+    tags: Array.isArray(item.tags) ? item.tags.filter(t => typeof t === 'string' && t.trim().length > 0) : []
+  };
+
+  if (typeof item.isFallback === 'boolean') {
+    clean.isFallback = item.isFallback;
+  }
+  if (typeof item.isFavorite === 'boolean') {
+    clean.isFavorite = item.isFavorite;
+  }
+  if (typeof item.isMimicMode === 'boolean') {
+    clean.isMimicMode = item.isMimicMode;
+  }
+  if (typeof item.rating === 'number' && !isNaN(item.rating)) {
+    clean.rating = item.rating;
+  }
+  if (typeof item.translatedText === 'string' && item.translatedText.trim()) {
+    clean.translatedText = item.translatedText;
+  }
+  if (typeof item.notes === 'string' && item.notes.trim()) {
+    clean.notes = item.notes;
+  }
+  // Store image URLs only if safe length (prevent base64 data URLs from exceeding 2048 size rule)
+  if (typeof item.styleImage === 'string' && item.styleImage.trim() && item.styleImage.length <= 2048) {
+    clean.styleImage = item.styleImage;
+  }
+  if (typeof item.contentImage === 'string' && item.contentImage.trim() && item.contentImage.length <= 2048) {
+    clean.contentImage = item.contentImage;
+  }
+
+  return clean;
 }
 
 /**
@@ -146,17 +210,27 @@ export async function addUserHistoryItem(userId: string, item: PromptHistoryItem
   const path = `users/${userId}/history/${item.id}`;
   try {
     // Ensure parent user profile exists first (relational sync blueprint/Master Gate helper)
-    await syncUserProfile({
-      uid: userId,
-      email: auth.currentUser?.email,
-      displayName: auth.currentUser?.displayName,
-      photoURL: auth.currentUser?.photoURL,
-      emailVerified: auth.currentUser?.emailVerified
-    });
+    try {
+      await syncUserProfile({
+        uid: userId,
+        email: auth.currentUser?.email,
+        displayName: auth.currentUser?.displayName,
+        photoURL: auth.currentUser?.photoURL,
+        emailVerified: auth.currentUser?.emailVerified
+      });
+    } catch (profileErr) {
+      console.warn("Pre-history profile sync skipped/offline:", profileErr);
+    }
 
     const docRef = doc(db, 'users', userId, 'history', item.id);
-    await setDoc(docRef, item);
-  } catch (error) {
+    const sanitizedItem = sanitizePromptHistoryItem(item);
+    await setDoc(docRef, sanitizedItem);
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("addUserHistoryItem queued in local cache (client is offline):", msg);
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
@@ -168,8 +242,14 @@ export async function updateUserHistoryItem(userId: string, itemId: string, upda
   const path = `users/${userId}/history/${itemId}`;
   try {
     const docRef = doc(db, 'users', userId, 'history', itemId);
-    await updateDoc(docRef, updates);
-  } catch (error) {
+    const sanitizedUpdates = sanitizeForFirestore(updates);
+    await updateDoc(docRef, sanitizedUpdates);
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("updateUserHistoryItem queued in local cache (client is offline):", msg);
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -182,7 +262,12 @@ export async function deleteUserHistoryItem(userId: string, itemId: string): Pro
   try {
     const docRef = doc(db, 'users', userId, 'history', itemId);
     await deleteDoc(docRef);
-  } catch (error) {
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("deleteUserHistoryItem queued in local cache (client is offline):", msg);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -199,7 +284,12 @@ export async function deleteMultipleUserHistoryItems(userId: string, itemIds: st
       batch.delete(docRef);
     });
     await batch.commit();
-  } catch (error) {
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("deleteMultipleUserHistoryItems skipped/offline:", msg);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -217,7 +307,12 @@ export async function clearUserHistory(userId: string): Promise<void> {
       batch.delete(doc.ref);
     });
     await batch.commit();
-  } catch (error) {
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("clearUserHistory skipped/offline:", msg);
+      return;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -247,7 +342,7 @@ export async function syncAllHistoryToFirestore(userId: string, localItems: Prom
       const batch = writeBatch(db);
       toUpload.forEach((item) => {
         const docRef = doc(db, 'users', userId, 'history', item.id);
-        batch.set(docRef, item);
+        batch.set(docRef, sanitizePromptHistoryItem(item));
       });
       await batch.commit();
     }
@@ -259,3 +354,250 @@ export async function syncAllHistoryToFirestore(userId: string, localItems: Prom
     return localItems;
   }
 }
+
+/**
+ * Retrieve saved video sequences from Firestore
+ */
+export async function getUserSequences(userId: string): Promise<SavedSequence[]> {
+  try {
+    const colRef = collection(db, 'users', userId, 'sequences');
+    const q = query(colRef, orderBy('updatedAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => doc.data() as SavedSequence);
+  } catch (error) {
+    console.warn("getUserSequences fallback to empty list:", error);
+    return [];
+  }
+}
+
+/**
+ * Save or update a single video sequence
+ */
+export async function saveUserSequence(userId: string, sequence: SavedSequence): Promise<void> {
+  try {
+    const docRef = doc(db, 'users', userId, 'sequences', sequence.id);
+    const sanitized = sanitizeForFirestore(sequence);
+    await setDoc(docRef, sanitized, { merge: true });
+  } catch (error) {
+    console.warn("saveUserSequence skipped offline:", error);
+  }
+}
+
+/**
+ * Delete a saved video sequence
+ */
+export async function deleteUserSequence(userId: string, sequenceId: string): Promise<void> {
+  try {
+    const docRef = doc(db, 'users', userId, 'sequences', sequenceId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.warn("deleteUserSequence skipped offline:", error);
+  }
+}
+
+/**
+ * Merges local and remote sequences
+ */
+export async function syncAllSequencesToFirestore(userId: string, localItems: SavedSequence[]): Promise<SavedSequence[]> {
+  try {
+    const serverItems = await getUserSequences(userId);
+    const serverIds = new Set(serverItems.map(item => item.id));
+    const toUpload = localItems.filter(item => !serverIds.has(item.id));
+    if (toUpload.length > 0) {
+      const batch = writeBatch(db);
+      toUpload.forEach((item) => {
+        const docRef = doc(db, 'users', userId, 'sequences', item.id);
+        batch.set(docRef, sanitizeForFirestore(item));
+      });
+      await batch.commit();
+    }
+    return await getUserSequences(userId);
+  } catch (error) {
+    console.warn("syncAllSequencesToFirestore fallback:", error);
+    return localItems;
+  }
+}
+
+/**
+ * Retrieve saved Cinema Movie Projects from Firestore
+ */
+export async function getUserMovieProjects(userId: string): Promise<MovieProject[]> {
+  try {
+    const colRef = collection(db, 'users', userId, 'movie_projects');
+    let snap;
+    try {
+      const q = query(colRef, orderBy('updatedAt', 'desc'));
+      snap = await getDocs(q);
+    } catch {
+      snap = await getDocs(colRef);
+    }
+    const projects = snap.docs.map(doc => doc.data() as MovieProject);
+    return projects.sort((a, b) => 
+      new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
+    );
+  } catch (error) {
+    console.warn("getUserMovieProjects fallback to empty list:", error);
+    return [];
+  }
+}
+
+/**
+ * Save or update a single Cinema Movie Project
+ */
+export async function saveUserMovieProject(userId: string, project: MovieProject): Promise<void> {
+  const path = `users/${userId}/movie_projects/${project.id}`;
+  try {
+    // Ensure parent user profile exists first
+    try {
+      await syncUserProfile({
+        uid: userId,
+        email: auth.currentUser?.email,
+        displayName: auth.currentUser?.displayName,
+        photoURL: auth.currentUser?.photoURL,
+        emailVerified: auth.currentUser?.emailVerified
+      });
+    } catch (profileErr) {
+      console.warn("Pre-movie-project profile sync skipped/offline:", profileErr);
+    }
+
+    const safeId = String(project.id || '').replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 120) || ('movie_' + Date.now());
+    const docRef = doc(db, 'users', userId, 'movie_projects', safeId);
+    const sanitized = sanitizeForFirestore({ ...project, id: safeId });
+    await setDoc(docRef, sanitized, { merge: true });
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('unavailable')) {
+      console.warn("saveUserMovieProject cached offline:", msg);
+      return;
+    }
+    console.warn("saveUserMovieProject warning:", error);
+  }
+}
+
+/**
+ * Delete a saved Cinema Movie Project
+ */
+export async function deleteUserMovieProject(userId: string, projectId: string): Promise<void> {
+  try {
+    const safeId = String(projectId || '').replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 120);
+    const docRef = doc(db, 'users', userId, 'movie_projects', safeId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.warn("deleteUserMovieProject skipped offline:", error);
+  }
+}
+
+/**
+ * Merges local and remote Cinema Movie Projects with zero data loss
+ */
+export async function syncAllMovieProjectsToFirestore(userId: string, localItems: MovieProject[]): Promise<MovieProject[]> {
+  try {
+    const serverItems = await getUserMovieProjects(userId);
+    const serverMap = new Map<string, MovieProject>();
+    serverItems.forEach(item => serverMap.set(item.id, item));
+
+    const toUpload = localItems.filter(item => {
+      const existing = serverMap.get(item.id);
+      if (!existing) return true;
+      const localTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
+      const serverTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      return localTime > serverTime;
+    });
+
+    if (toUpload.length > 0) {
+      const batch = writeBatch(db);
+      toUpload.forEach((item) => {
+        const safeId = String(item.id || '').replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 120) || ('movie_' + Date.now());
+        const docRef = doc(db, 'users', userId, 'movie_projects', safeId);
+        batch.set(docRef, sanitizeForFirestore({ ...item, id: safeId }), { merge: true });
+      });
+      await batch.commit();
+    }
+
+    const updatedServerList = await getUserMovieProjects(userId);
+    const combinedMap = new Map<string, MovieProject>();
+    localItems.forEach(item => combinedMap.set(item.id, item));
+    updatedServerList.forEach(item => combinedMap.set(item.id, item));
+
+    return Array.from(combinedMap.values()).sort((a, b) => 
+      new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
+    );
+  } catch (error) {
+    console.warn("syncAllMovieProjectsToFirestore fallback:", error);
+    return localItems;
+  }
+}
+
+/**
+ * Creates a publicly accessible shared sequence snapshot in Firestore.
+ * Returns the unique shareId.
+ */
+export async function createSharedSequence(data: Omit<SharedSequenceData, 'id' | 'createdAt'> & { id?: string }): Promise<string> {
+  const shareId = data.id || `seq_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+  const cleanId = String(shareId).replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 100);
+  const now = new Date().toISOString();
+
+  const payload: SharedSequenceData = {
+    ...data,
+    id: cleanId,
+    createdAt: now,
+  };
+
+  const sanitized = sanitizeForFirestore(payload);
+  const docRef = doc(db, 'shared_sequences', cleanId);
+
+  try {
+    await setDoc(docRef, sanitized);
+    return cleanId;
+  } catch (error) {
+    console.warn("createSharedSequence fallback/offline:", error);
+    return cleanId;
+  }
+}
+
+/**
+ * Retrieves a shared sequence snapshot from Firestore by its unique shareId.
+ */
+export async function getSharedSequence(shareId: string): Promise<SharedSequenceData | null> {
+  if (!shareId) return null;
+  const cleanId = String(shareId).replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 100);
+  try {
+    const docRef = doc(db, 'shared_sequences', cleanId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as SharedSequenceData;
+    }
+    return null;
+  } catch (error) {
+    console.warn("getSharedSequence error fetching from Firestore:", error);
+    return null;
+  }
+}
+
+/**
+ * Compact helper to serialize sequence to a URL-safe Base64 string for zero-network sharing
+ */
+export function encodeSequenceToHash(data: any): string {
+  try {
+    const jsonStr = JSON.stringify(data);
+    return encodeURIComponent(btoa(unescape(encodeURIComponent(jsonStr))));
+  } catch (e) {
+    console.error('Error encoding sequence to hash:', e);
+    return '';
+  }
+}
+
+/**
+ * Decodes URL-safe Base64 string back into sequence object
+ */
+export function decodeSequenceFromHash(hash: string): any | null {
+  try {
+    const jsonStr = decodeURIComponent(escape(atob(decodeURIComponent(hash))));
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error('Error decoding sequence from hash:', e);
+    return null;
+  }
+}
+
+

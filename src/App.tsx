@@ -6,22 +6,29 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import HeroSection from './components/HeroSection';
+import VisitorCounter from './components/VisitorCounter';
 import PromptBuilder from './components/PromptBuilder';
-import TemplatesLibrary from './components/TemplatesLibrary';
-import PromptTester from './components/PromptTester';
+import CinemaMovieStudio from './components/CinemaMovieStudio';
 import PromptHistory from './components/PromptHistory';
 import PromptReverser from './components/PromptReverser';
 import PromptSequence from './components/PromptSequence';
-import PromptAnalytics from './components/PromptAnalytics';
-import PromptRapEngine from './components/PromptRapEngine';
-import ArabPromptDashboard from './components/ArabPromptDashboard';
 import VideoPromptDesigner from './components/VideoPromptDesigner';
+import PromptIdeaGenerator from './components/PromptIdeaGenerator';
 import DiffusionDBGuide from './components/DiffusionDBGuide';
 import CloudBackupCenter from './components/CloudBackupCenter';
+import PrivacySettings from './components/PrivacySettings';
+import Pricing from './components/Pricing';
+import PromptTemplates from './components/PromptTemplates';
+import VisualConceptLibrary from './components/VisualConceptLibrary';
+import AuthModal, { AuthMode } from './components/AuthModal';
+import CheckoutModal from './components/CheckoutModal';
+import { getSubscription, UserSubscription, SubscriptionPlan, recordGenerationUsage } from './utils/subscriptionService';
 import { BackupMetadata, getBackupConfig, saveBackupConfig, searchGDriveBackup, uploadGDriveBackup, uploadDropboxBackup, backupToDropboxSimulated, backupToICloudSimulated, backupToCustomBackendSimulated } from './utils/cloudBackup';
-import { ActiveTab, PromptHistoryItem, ModelType } from './types';
+import { ActiveTab, PromptHistoryItem, ModelType, AppLanguage, SUPPORTED_LANGUAGES } from './types';
 import { ToastNotification } from './components/ToastNotification';
-import { Sparkles } from 'lucide-react';
+import { GooglePlayGuideModal } from './components/GooglePlayGuideModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { Sparkles, Smartphone } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { initAuth, googleSignIn, logout } from './utils/firebaseAuth';
 import {
@@ -46,6 +53,11 @@ import {
 function saveHistorySafely(items: PromptHistoryItem[]): PromptHistoryItem[] {
   const KEY = 'arabi_prompt_history';
   try {
+    const consent = localStorage.getItem('arabi_prompt_consent_local_history');
+    if (consent === 'false') {
+      localStorage.removeItem(KEY);
+      return [];
+    }
     localStorage.setItem(KEY, JSON.stringify(items));
     return items;
   } catch (err: any) {
@@ -99,9 +111,44 @@ function saveHistorySafely(items: PromptHistoryItem[]): PromptHistoryItem[] {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
-  const [lang, setLang] = useState<'ar' | 'en'>('ar');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    try {
+      const search = window.location.search;
+      if (search) {
+        const params = new URLSearchParams(search);
+        const tab = params.get('tab') as ActiveTab;
+        if (tab && ['builder', 'templates', 'cinema', 'visual_library', 'ideas', 'reverse', 'sequence', 'drone', 'diffusiondb', 'history', 'privacy', 'pricing'].includes(tab)) {
+          return tab;
+        }
+        if (params.get('seq') || params.get('sequenceId') || params.get('sharedSeq') || params.get('sseq')) {
+          return 'sequence';
+        }
+        if (params.get('movie_seq') || params.get('sharedMovie') || params.get('smovie')) {
+          return 'cinema';
+        }
+      }
+    } catch {}
+    return 'builder';
+  });
+  const [lang, setLang] = useState<AppLanguage>(() => {
+    try {
+      const saved = localStorage.getItem('arabi_prompt_lang') as AppLanguage;
+      if (saved && SUPPORTED_LANGUAGES.some(l => l.code === saved)) {
+        return saved;
+      }
+    } catch {}
+    return 'ar';
+  });
   const [passedPrompt, setPassedPrompt] = useState<string>('');
+
+  useEffect(() => {
+    const opt = SUPPORTED_LANGUAGES.find(l => l.code === lang);
+    document.documentElement.dir = opt ? opt.dir : (lang === 'ar' ? 'rtl' : 'ltr');
+    document.documentElement.lang = lang;
+    try {
+      localStorage.setItem('arabi_prompt_lang', lang);
+    } catch {}
+  }, [lang]);
   
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -127,6 +174,10 @@ export default function App() {
 
   const [history, setHistory] = useState<PromptHistoryItem[]>(() => {
     try {
+      const consent = localStorage.getItem('arabi_prompt_consent_local_history');
+      if (consent === 'false') {
+        return [];
+      }
       const stored = localStorage.getItem('arabi_prompt_history');
       return stored ? JSON.parse(stored) : [];
     } catch {
@@ -135,13 +186,54 @@ export default function App() {
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<AuthMode>('login');
+
+  const handleOpenAuth = (mode: AuthMode = 'login') => {
+    setAuthModalMode(mode);
+    setIsAuthModalOpen(true);
+  };
+
+  // User Subscription State
+  const [subscription, setSubscription] = useState<UserSubscription>(() => getSubscription());
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<SubscriptionPlan>('pro');
+  const [checkoutBillingCycle, setCheckoutBillingCycle] = useState<'monthly' | 'annual'>('annual');
+
+  const handleOpenCheckout = (plan: SubscriptionPlan = 'pro', cycle: 'monthly' | 'annual' = 'annual') => {
+    setCheckoutPlan(plan);
+    setCheckoutBillingCycle(cycle);
+    setIsCheckoutModalOpen(true);
+  };
+
+  useEffect(() => {
+    const handleSubUpdated = (e: any) => {
+      if (e.detail) {
+        setSubscription(e.detail);
+      }
+    };
+    window.addEventListener('subscription-updated', handleSubUpdated);
+    const handleCheckoutEvent = (e: any) => {
+      const plan = e.detail?.plan || 'lite';
+      const cycle = e.detail?.billingCycle || 'annual';
+      handleOpenCheckout(plan, cycle);
+    };
+    window.addEventListener('open-checkout', handleCheckoutEvent);
+
+    return () => {
+      window.removeEventListener('subscription-updated', handleSubUpdated);
+      window.removeEventListener('open-checkout', handleCheckoutEvent);
+    };
+  }, []);
 
   // Centralized Cloud Backup State & Control
   const [backupConfig, setBackupConfigState] = useState<BackupMetadata>(() => getBackupConfig());
   const [isCloudBackingUp, setIsCloudBackingUp] = useState(false);
   const [isCloudRestoring, setIsCloudRestoring] = useState(false);
   const [isBackupCenterOpen, setIsBackupCenterOpen] = useState(false);
+  const [isPlayGuideOpen, setIsPlayGuideOpen] = useState(false);
 
   const handleConfigChange = (
     newProvider: 'google-drive' | 'dropbox' | 'firebase' | 'icloud' | 'custom-backend' | null,
@@ -166,10 +258,12 @@ export default function App() {
       (user, token) => {
         setCurrentUser(user);
         setGoogleAccessToken(token);
+        setAuthChecking(false);
       },
       () => {
         setCurrentUser(null);
         setGoogleAccessToken(null);
+        setAuthChecking(false);
       }
     );
     return () => {
@@ -302,6 +396,15 @@ export default function App() {
     };
   }, [history, backupConfig, googleAccessToken, currentUser]);
 
+  // Guard access to 'privacy' (Costs & Privacy) - strictly private to adwwaw@gmail.com
+  useEffect(() => {
+    if (activeTab === 'privacy' && !authChecking) {
+      if (currentUser?.email?.toLowerCase() !== 'adwwaw@gmail.com') {
+        setActiveTab('builder');
+      }
+    }
+  }, [activeTab, currentUser, authChecking]);
+
   // Synchronize layout when currentUser state shifts
   useEffect(() => {
     async function syncData() {
@@ -358,6 +461,8 @@ export default function App() {
       await logout();
       setCurrentUser(null);
       setGoogleAccessToken(null);
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
     } catch (err) {
       console.error('Sign out failed:', err);
     }
@@ -389,21 +494,23 @@ export default function App() {
     contentImage?: string | null;
     notes?: string;
     isMimicMode?: boolean;
+    tags?: string[];
   }) => {
     const newItem: PromptHistoryItem = {
-      id: Math.random().toString(36).substring(2, 9) + Date.now(),
+      id: Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
       timestamp: new Date().toISOString(),
-      originalText: item.originalText,
-      optimizedText: item.optimizedText,
-      model: item.model,
-      tone: item.tone,
-      category: item.category,
-      actionType: item.actionType,
-      isFallback: item.isFallback,
-      styleImage: item.styleImage,
-      contentImage: item.contentImage,
-      notes: item.notes,
-      isMimicMode: item.isMimicMode
+      originalText: item.originalText || '',
+      optimizedText: item.optimizedText || '',
+      model: item.model || 'gemini',
+      tone: item.tone || 'مهني واحترافي',
+      category: item.category || 'content',
+      actionType: item.actionType || 'generate',
+      tags: item.tags || [],
+      ...(item.isFallback !== undefined ? { isFallback: item.isFallback } : {}),
+      ...(item.styleImage ? { styleImage: item.styleImage } : {}),
+      ...(item.contentImage ? { contentImage: item.contentImage } : {}),
+      ...(item.notes ? { notes: item.notes } : {}),
+      ...(item.isMimicMode !== undefined ? { isMimicMode: item.isMimicMode } : {})
     };
 
     setHistory((prev) => {
@@ -416,6 +523,9 @@ export default function App() {
         console.error('Failed to save log item to Firestore:', err);
       });
     }
+
+    // Increment daily plan usage
+    recordGenerationUsage(currentUser?.uid);
   };
 
   const handleClearHistory = () => {
@@ -497,6 +607,48 @@ export default function App() {
     }
   };
 
+  const handleUpdateTags = (id: string, tags: string[]) => {
+    setHistory((prev) => {
+      const updated = prev.map((item) => {
+        if (item.id === id) {
+          return { ...item, tags };
+        }
+        return item;
+      });
+      return saveHistorySafely(updated);
+    });
+
+    if (currentUser) {
+      updateUserHistoryItem(currentUser.uid, id, { tags }).catch((err) => {
+        console.error('Failed to update tags in Firestore:', err);
+      });
+    }
+  };
+
+  const handleBulkUpdateTags = (ids: string[], newTag: string) => {
+    const cleanTag = newTag.trim().replace(/^#+/, '');
+    if (!cleanTag) return;
+
+    setHistory((prev) => {
+      const updated = prev.map((item) => {
+        if (ids.includes(item.id)) {
+          const currentTags = item.tags || [];
+          if (!currentTags.includes(cleanTag)) {
+            const nextTags = [...currentTags, cleanTag];
+            if (currentUser) {
+              updateUserHistoryItem(currentUser.uid, item.id, { tags: nextTags }).catch((err) => {
+                console.error('Failed to update tags in Firestore:', err);
+              });
+            }
+            return { ...item, tags: nextTags };
+          }
+        }
+        return item;
+      });
+      return saveHistorySafely(updated);
+    });
+  };
+
   const handleRestoreHistory = (importedItems: PromptHistoryItem[]) => {
     setHistory((prev) => {
       const existingIds = new Set(prev.map((item) => item.id));
@@ -532,13 +684,35 @@ export default function App() {
     }, 100);
   };
 
+  const handleApplyIdeaToBuilder = (data: { concept: string; model: ModelType; tone: string; category: string }) => {
+    setBuilderInitialValues({
+      concept: data.concept,
+      model: data.model,
+      tone: data.tone,
+      category: data.category
+    });
+    setActiveTab('builder');
+    setTimeout(() => {
+      const panel = document.getElementById('prompt-builder-panel');
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
   const handleSendToTester = (promptText: string) => {
     setPassedPrompt(promptText);
-    setActiveTab('tester');
+    setBuilderInitialValues({
+      concept: promptText,
+      model: 'gemini',
+      tone: 'مهني واحترافي',
+      category: 'content'
+    });
+    setActiveTab('builder');
     
-    // Smooth scroll down to tester panel if needed
+    // Smooth scroll down to builder panel
     setTimeout(() => {
-      const panel = document.getElementById('prompt-tester-panel');
+      const panel = document.getElementById('prompt-builder-panel');
       if (panel) {
         panel.scrollIntoView({ behavior: 'smooth' });
       }
@@ -590,46 +764,132 @@ export default function App() {
         setDarkMode={setDarkMode}
         backupConfig={backupConfig}
         onOpenBackupCenter={() => setIsBackupCenterOpen(true)}
+        user={currentUser}
+        onOpenAuth={handleOpenAuth}
+        subscription={subscription}
+        onOpenCheckout={handleOpenCheckout}
+        onOpenPlayGuide={() => setIsPlayGuideOpen(true)}
       />
 
       {/* Main Tab Workspace container */}
       <main className="flex-1 bg-gradient-to-b from-[#f9f8f4] to-[#fbfbfa]">
-        {activeTab === 'dashboard' && (
-          <ArabPromptDashboard
-            lang={lang}
-            history={history}
-            onClearHistory={handleClearHistory}
-            onDeleteHistoryItem={handleDeleteHistoryItem}
-            onToggleFavorite={handleToggleFavorite}
-            onSendToTester={handleSendToTester}
-            onApplyToBuilder={handleApplyToBuilder}
-            onLogPrompt={handleLogPrompt}
-          />
-        )}
         {activeTab === 'builder' && (
           <PromptBuilder 
             lang={lang} 
             onSendToTester={handleSendToTester} 
+            onNavigateToReverse={() => setActiveTab('reverse')}
+            onNavigateToTemplates={() => setActiveTab('templates')}
             onLogPrompt={handleLogPrompt}
             initialValues={builderInitialValues}
           />
+        )}
+
+        {activeTab === 'templates' && (
+          <PromptTemplates
+            lang={lang}
+            onSendToBuilder={(promptText, model, tone, category) => {
+              setPassedPrompt(promptText);
+              setBuilderInitialValues({
+                concept: promptText,
+                model: model || 'gemini',
+                tone: tone || 'احترافي',
+                category: category || 'creative'
+              });
+              setActiveTab('builder');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
+          />
+        )}
+
+        {activeTab === 'cinema' && (
+          <CinemaMovieStudio
+            lang={lang}
+            user={currentUser}
+            onSendToTester={handleSendToTester}
+            onLogPrompt={handleLogPrompt}
+          />
+        )}
+
+        {activeTab === 'visual_library' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <VisualConceptLibrary
+              lang={lang}
+              onSendToBuilder={(promptText, model) => {
+                setPassedPrompt(promptText);
+                setBuilderInitialValues({
+                  concept: promptText,
+                  model: model || 'midjourney',
+                  tone: 'إبداعي وحر',
+                  category: 'creative'
+                });
+                setActiveTab('builder');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          </div>
+        )}
+
+        {activeTab === 'ideas' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-[#916a24]/10 via-[#c29b40]/15 to-[#ecd197]/20 p-6 rounded-3xl border border-[#c29b40]/30 shadow-xs">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-[#c29b40] text-white flex items-center justify-center shadow-md">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-black text-stone-900 tracking-tight font-sans">
+                    {lang === 'ar' ? 'مختبر ومُولد الأفكار الذكية (Prompt Idea Generator)' : 'Prompt Idea Generator Workspace'}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-600 mt-0.5">
+                    {lang === 'ar' 
+                      ? 'مساحة مخصصة متكاملة لتجاوز حاجز الكتابة، واستكشاف زوايا أوامر غير تقليدية، وتوليد أفكار حية عبر الذكاء الاصطناعي.' 
+                      : 'Dedicated creative workspace to brainstorm cutting-edge prompt angles and generate live AI ideas.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('builder')}
+                className="px-4 py-2 rounded-xl bg-white border border-[#c29b40]/40 text-[#916a24] hover:bg-[#c29b40]/10 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <span>{lang === 'ar' ? 'الذهاب إلى مُهندس الأوامر' : 'Go to Builder'}</span>
+                {lang === 'ar' ? <span>←</span> : <span>→</span>}
+              </button>
+            </div>
+
+            <PromptIdeaGenerator
+              lang={lang}
+              onSelectIdea={handleApplyIdeaToBuilder}
+              compact={false}
+            />
+          </div>
         )}
         {activeTab === 'reverse' && (
           <PromptReverser
             lang={lang}
             onSendToTester={handleSendToTester}
+            onNavigateToBuilder={() => setActiveTab('builder')}
             onLogPrompt={handleLogPrompt}
             initialValues={reverserInitialValues}
           />
         )}
-        {activeTab === 'library' && (
-          <TemplatesLibrary lang={lang} onSendToTester={handleSendToTester} />
-        )}
         {activeTab === 'sequence' && (
           <PromptSequence lang={lang} onSendToTester={handleSendToTester} />
         )}
-        {activeTab === 'tester' && (
-          <PromptTester lang={lang} passedPrompt={passedPrompt} onLogPrompt={handleLogPrompt} />
+        {activeTab === 'drone' && (
+          <VideoPromptDesigner
+            lang={lang}
+            onSendToTester={handleSendToTester}
+            onLogPrompt={handleLogPrompt}
+          />
+        )}
+        {activeTab === 'diffusiondb' && (
+          <DiffusionDBGuide
+            lang={lang}
+            onSendToTester={handleSendToTester}
+          />
         )}
         {activeTab === 'history' && (
           <PromptHistory
@@ -644,6 +904,8 @@ export default function App() {
             onApplyToBuilder={handleApplyToBuilder}
             onApplyToReverser={handleApplyToReverser}
             onRestoreHistory={handleRestoreHistory}
+            onUpdateTags={handleUpdateTags}
+            onBulkUpdateTags={handleBulkUpdateTags}
             user={currentUser}
             accessToken={googleAccessToken}
             onGoogleSignIn={handleGoogleSignIn}
@@ -656,27 +918,22 @@ export default function App() {
             setIsCloudRestoring={setIsCloudRestoring}
           />
         )}
-        {activeTab === 'analytics' && (
-          <PromptAnalytics lang={lang} history={history} />
-        )}
-        {activeTab === 'rap' && (
-          <PromptRapEngine
+        {activeTab === 'privacy' && currentUser?.email?.toLowerCase() === 'adwwaw@gmail.com' && (
+          <PrivacySettings
             lang={lang}
-            onSendToTester={handleSendToTester}
-            onLogPrompt={handleLogPrompt}
+            history={history}
+            onClearHistory={handleClearHistory}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
           />
         )}
-        {activeTab === 'drone' && (
-          <VideoPromptDesigner
+        {activeTab === 'pricing' && (
+          <Pricing
             lang={lang}
-            onSendToTester={handleSendToTester}
-            onLogPrompt={handleLogPrompt}
-          />
-        )}
-        {activeTab === 'diffusiondb' && (
-          <DiffusionDBGuide
-            lang={lang}
-            onSendToTester={handleSendToTester}
+            onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
+            onOpenAuth={handleOpenAuth}
+            onOpenCheckout={handleOpenCheckout}
           />
         )}
       </main>
@@ -695,6 +952,28 @@ export default function App() {
                 : 'ArabPrompt — Designed with focus on Arabic Prompt Quality & AI Standards'}
             </span>
           </p>
+
+          {/* Real verified unique visitor counter (Private to admin only) */}
+          <div className="pt-2 flex justify-center">
+            <VisitorCounter
+              lang={lang}
+              variant="footer"
+              currentUser={currentUser}
+              onOpenAuth={handleOpenAuth}
+            />
+          </div>
+
+          {/* Google Play App Button */}
+          <div className="flex justify-center gap-2 pt-1">
+            <button
+              onClick={() => setIsPlayGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#916a24] dark:hover:text-amber-400 text-xs font-bold transition shadow-xs"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-[#c29b40]" />
+              <span>{lang === 'ar' ? 'تطبيق الهاتف ومتجر Google Play' : 'Google Play & Mobile App'}</span>
+            </button>
+          </div>
+
           <p className="text-[10px] text-stone-400">
             {lang === 'ar' 
               ? 'صنع بذكاء عبر نموذج Google Gemini © 2026' 
@@ -702,7 +981,12 @@ export default function App() {
           </p>
         </div>
       </footer>
-      <ToastNotification lang={lang} />
+      <ToastNotification lang={lang} onOpenCheckout={handleOpenCheckout} />
+      <OfflineIndicator lang={lang} />
+      <GooglePlayGuideModal
+        isOpen={isPlayGuideOpen}
+        onClose={() => setIsPlayGuideOpen(false)}
+      />
       <CloudBackupCenter
         isOpen={isBackupCenterOpen}
         onClose={() => setIsBackupCenterOpen(false)}
@@ -719,6 +1003,32 @@ export default function App() {
         setIsCloudBackingUp={setIsCloudBackingUp}
         isCloudRestoring={isCloudRestoring}
         setIsCloudRestoring={setIsCloudRestoring}
+        onOpenAuthModal={handleOpenAuth}
+      />
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        lang={lang}
+        currentUser={currentUser}
+        initialMode={authModalMode}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthModalOpen(false);
+        }}
+        onLogout={handleLogout}
+        onOpenApiDashboard={() => setActiveTab('privacy')}
+        onOpenCheckout={handleOpenCheckout}
+      />
+      <CheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        lang={lang}
+        initialPlan={checkoutPlan}
+        initialBillingCycle={checkoutBillingCycle}
+        user={currentUser}
+        onSubscriptionSuccess={(newSub) => {
+          setSubscription(newSub);
+        }}
       />
     </div>
   );

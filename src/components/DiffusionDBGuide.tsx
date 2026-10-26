@@ -28,9 +28,10 @@ import {
   ArrowRight,
   ExternalLink
 } from 'lucide-react';
+import { AppLanguage } from '../types';
 
 interface DiffusionDBGuideProps {
-  lang: 'ar' | 'en';
+  lang: AppLanguage;
   onSendToTester: (promptText: string) => void;
 }
 
@@ -802,7 +803,7 @@ print(vintage_art[['image_name', 'prompt', 'cfg']].head(10))`;
                         onClick={() => onSendToTester(isp.prompt)}
                         className="flex-1 py-1.5 px-3 font-extrabold text-[10px] bg-[#c29b40] text-white rounded-lg text-center cursor-pointer transition-all hover:bg-[#a6802f]"
                       >
-                        {lang === 'ar' ? 'تجربة بالمختبر' : 'Test Sandbox'}
+                        {lang === 'ar' ? 'نقل إلى المُهندس' : 'Open in Builder'}
                       </button>
                     </div>
                   </div>

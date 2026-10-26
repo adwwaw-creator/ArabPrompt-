@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { PromptHistoryItem } from '../types';
+import { PromptHistoryItem, AppLanguage } from '../types';
 import { 
   History, 
   Trash2, 
   Copy, 
   Check, 
   Cpu, 
+  PenTool,
   CornerDownLeft, 
   Search, 
   Calendar, 
@@ -35,8 +36,19 @@ import {
   Settings,
   Clock,
   CheckSquare,
-  Square
+  Square,
+  Tag,
+  Hash,
+  Plus,
+  X,
+  ArrowLeftRight,
+  Share2,
+  Filter,
+  RotateCcw,
+  ArrowUpDown,
+  BarChart3
 } from 'lucide-react';
+import PromptHistoryDashboard from './PromptHistoryDashboard';
 import {
   getBackupConfig,
   saveBackupConfig,
@@ -55,6 +67,9 @@ import {
   syncAllHistoryToFirestore
 } from '../utils/firestoreService';
 import { showToast } from './ToastNotification';
+import PromptCompareModal from './PromptCompareModal';
+import SharePromptToAiModal from './SharePromptToAiModal';
+import ExportPdfModal from './ExportPdfModal';
 
 export const exportableFields = [
   { key: 'id', labelAr: 'المعرف الفريد (ID)', labelEn: 'Unique ID' },
@@ -62,6 +77,7 @@ export const exportableFields = [
   { key: 'originalText', labelAr: 'النص الأصلي (الفكرة الكامنة)', labelEn: 'Original Thought Prompt' },
   { key: 'optimizedText', labelAr: 'الأمر الهندسي المحسن النهائي', labelEn: 'Optimized Target Prompt' },
   { key: 'translatedText', labelAr: 'الترجمة والتعريب الإنجليزي', labelEn: 'Translated English Prompt' },
+  { key: 'tags', labelAr: 'الوسوم والتصنيفات (Tags)', labelEn: 'Tags & Keywords' },
   { key: 'model', labelAr: 'النموذج الذكي المستهدف', labelEn: 'Target AI Model' },
   { key: 'tone', labelAr: 'النبرة والأسلوب البصري الكلاسيكي', labelEn: 'Target Tone & Aesthetic' },
   { key: 'category', labelAr: 'التصنيف والخبرة العملية', labelEn: 'Expert Category Context' },
@@ -70,7 +86,7 @@ export const exportableFields = [
 ];
 
 interface PromptHistoryProps {
-  lang: 'ar' | 'en';
+  lang: AppLanguage;
   history: PromptHistoryItem[];
   onClearHistory: () => void;
   onDeleteHistoryItem: (id: string) => void;
@@ -81,6 +97,8 @@ interface PromptHistoryProps {
   onApplyToBuilder: (originalText: string, model: any, tone: string, category: string) => void;
   onApplyToReverser?: (styleImage: string | null, contentImage: string | null, notes: string | undefined, isMimicMode: boolean | undefined) => void;
   onRestoreHistory: (imported: PromptHistoryItem[]) => void;
+  onUpdateTags?: (id: string, tags: string[]) => void;
+  onBulkUpdateTags?: (ids: string[], tag: string) => void;
   user?: any;
   accessToken?: string | null;
   onGoogleSignIn?: () => Promise<any>;
@@ -111,6 +129,8 @@ export default function PromptHistory({
   onApplyToBuilder,
   onApplyToReverser,
   onRestoreHistory,
+  onUpdateTags,
+  onBulkUpdateTags,
   user,
   accessToken,
   onGoogleSignIn,
@@ -126,9 +146,77 @@ export default function PromptHistory({
   const [modelFilter, setModelFilter] = useState<string>('all');
   const [ratingFilter, setRatingFilter] = useState<string>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [actionTypeFilter, setActionTypeFilter] = useState<'all' | 'generate' | 'refine' | 'translate' | 'reverse'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'highest-rated' | 'longest'>('newest');
+  const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({});
+  const [bulkTagInput, setBulkTagInput] = useState<string>('');
+  const [showBulkTagModal, setShowBulkTagModal] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [backupMessage, setBackupMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [visibleCount, setVisibleCount] = useState(25);
+  const [showDashboard, setShowDashboard] = useState<boolean>(true);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcut: Press '/' to focus search, 'Esc' to clear search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || (target as any).isContentEditable);
+      
+      if ((e.key === '/' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) && !isInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        if (searchTerm) {
+          setSearchTerm('');
+        } else {
+          searchInputRef.current?.blur();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchTerm]);
+
+  // Prompt Comparison Tool states
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+  const [comparePromptAId, setComparePromptAId] = useState<string | null>(null);
+  const [comparePromptBId, setComparePromptBId] = useState<string | null>(null);
+
+  const handleOpenCompare = (idA?: string, idB?: string) => {
+    if (idA) {
+      setComparePromptAId(idA);
+      setComparePromptBId(idB || history.find((h) => h.id !== idA)?.id || null);
+    } else if (selectedIds.length >= 2) {
+      setComparePromptAId(selectedIds[0]);
+      setComparePromptBId(selectedIds[1]);
+    } else if (selectedIds.length === 1) {
+      setComparePromptAId(selectedIds[0]);
+      setComparePromptBId(history.find((h) => h.id !== selectedIds[0])?.id || null);
+    } else {
+      setComparePromptAId(history[1]?.id || history[0]?.id || null);
+      setComparePromptBId(history[0]?.id || null);
+    }
+    setIsCompareModalOpen(true);
+  };
+
+  // Share to AI Tools states
+  const [shareItem, setShareItem] = useState<PromptHistoryItem | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+
+  // Export PDF Modal states
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [pdfModalScope, setPdfModalScope] = useState<'all' | 'favorites' | 'filtered' | 'selected'>('all');
+  const [pdfModalSingleItem, setPdfModalSingleItem] = useState<PromptHistoryItem | null>(null);
+
+  const openPdfModal = (scopeType: 'all' | 'favorites' | 'filtered' | 'selected' = 'all', item: PromptHistoryItem | null = null) => {
+    setPdfModalScope(scopeType);
+    setPdfModalSingleItem(item);
+    setIsPdfModalOpen(true);
+  };
 
   // Bulk Selection states
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -240,7 +328,7 @@ export default function PromptHistory({
             let val = (item as any)[fieldKey];
             
             if (fieldKey === 'timestamp') {
-              val = new Date(val).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US');
+              val = new Date(val).toLocaleString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US');
             } else if (fieldKey === 'isFavorite') {
               val = val ? (lang === 'ar' ? 'نعم' : 'Yes') : (lang === 'ar' ? 'لا' : 'No');
             } else if (fieldKey === 'model') {
@@ -249,6 +337,8 @@ export default function PromptHistory({
               val = getCategoryName(val);
             } else if (fieldKey === 'actionType') {
               val = getActionLabel({ actionType: val });
+            } else if (fieldKey === 'tags') {
+              val = Array.isArray(val) ? val.join(', ') : (val || '');
             }
             
             return escapeCSVValue(val);
@@ -835,6 +925,91 @@ export default function PromptHistory({
     }
   };
 
+  const handleExportAllCSVDirect = () => {
+    try {
+      if (history.length === 0) {
+        setBackupMessage({
+          type: 'info',
+          text: lang === 'ar' 
+            ? 'لا توجد بيانات حالية في سجل الأوامر لتصديرها كـ CSV. تفضل بتوليد بعض الأوامر أولاً!' 
+            : 'No data records available to export inside your log folder. Generate prompts first!'
+        });
+        return;
+      }
+
+      const escapeCSVValue = (val: any) => {
+        if (val === undefined || val === null) return '';
+        let str = String(val);
+        str = str.replace(/"/g, '""');
+        if (str.includes(csvDelimiter) || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+          return `"${str}"`;
+        }
+        return str;
+      };
+
+      // 1. Build CSV Header Row
+      const headerRow = exportableFields
+        .map(field => lang === 'ar' ? field.labelAr : field.labelEn)
+        .map(escapeCSVValue)
+        .join(csvDelimiter);
+
+      // 2. Build rows
+      const rows = history.map(item => {
+        return exportableFields.map(field => {
+          let val = (item as any)[field.key];
+          
+          if (field.key === 'timestamp') {
+            try {
+              val = new Date(val).toLocaleString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US');
+            } catch {
+              val = String(val);
+            }
+          } else if (field.key === 'isFavorite') {
+            val = val ? (lang === 'ar' ? 'نعم (مفضلة)' : 'Yes (Starred)') : (lang === 'ar' ? 'لا' : 'No');
+          } else if (field.key === 'model') {
+            val = getModelLabel(val);
+          } else if (field.key === 'category') {
+            val = getCategoryName(val);
+          } else if (field.key === 'actionType') {
+            val = getActionLabel({ actionType: val });
+          } else if (field.key === 'tags') {
+            val = Array.isArray(val) ? val.join(', ') : (val || '');
+          }
+          
+          return escapeCSVValue(val);
+        }).join(csvDelimiter);
+      });
+
+      const csvContent = [headerRow, ...rows].join('\n');
+      
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `arabprompt-all-database-csv-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setBackupMessage({
+        type: 'success',
+        text: lang === 'ar'
+          ? '✓ تم تصدير كافة سجلات الأوامر والمسودات الخاصة بك بنجاح كملف Excel CSV متوافق بالكامل!'
+          : '✓ Successfully exported all user history records to a spreadsheet-ready Excel CSV!'
+      });
+      
+      setTimeout(() => setBackupMessage(null), 6000);
+    } catch (error) {
+      console.error('Failed to export CSV database:', error);
+      setBackupMessage({
+        type: 'error',
+        text: lang === 'ar' ? 'عذراً، حدث خطأ أثناء تصدير ملف الـ CSV.' : 'An error occurred while compiling your CSV dataset.'
+      });
+    }
+  };
+
   const handleExportCSV = () => {
     try {
       if (history.length === 0) {
@@ -883,7 +1058,7 @@ export default function PromptHistory({
             let val = (item as any)[fieldKey];
             
             if (fieldKey === 'timestamp') {
-              val = new Date(val).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US');
+              val = new Date(val).toLocaleString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US');
             } else if (fieldKey === 'isFavorite') {
               val = val ? (lang === 'ar' ? 'نعم' : 'Yes') : (lang === 'ar' ? 'لا' : 'No');
             } else if (fieldKey === 'model') {
@@ -892,6 +1067,8 @@ export default function PromptHistory({
               val = getCategoryName(val);
             } else if (fieldKey === 'actionType') {
               val = getActionLabel({ actionType: val });
+            } else if (fieldKey === 'tags') {
+              val = Array.isArray(val) ? val.join(', ') : (val || '');
             }
             
             return escapeCSVValue(val);
@@ -1002,7 +1179,7 @@ export default function PromptHistory({
 
     items.forEach((item, index) => {
       const isLast = index === items.length - 1;
-      const dateStr = new Date(item.timestamp).toLocaleString(isArabic ? 'ar-EG' : 'en-US', {
+      const dateStr = new Date(item.timestamp).toLocaleString(isArabic ? 'ar-u-nu-latn' : 'en-US', {
         dateStyle: 'full',
         timeStyle: 'medium'
       });
@@ -1643,7 +1820,8 @@ export default function PromptHistory({
       chatgpt: 'OpenAI ChatGPT',
       claude: 'Anthropic Claude',
       notebooklm: 'Google NotebookLM',
-      midjourney: 'Midjourney'
+      midjourney: 'Midjourney',
+      meta: 'Meta AI / Llama 3'
     };
     return map[model] || model;
   };
@@ -1659,19 +1837,237 @@ export default function PromptHistory({
     return map[cat] ? (lang === 'ar' ? map[cat].ar : map[cat].en) : cat;
   };
 
-  // Filter items
-  const filteredHistory = history.filter(item => {
-    const matchesSearch = 
-      item.originalText.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.optimizedText.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.translatedText && item.translatedText.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesModel = modelFilter === 'all' || item.model === modelFilter;
-    const matchesFavorite = !showFavoritesOnly || !!item.isFavorite;
-    const matchesRating = ratingFilter === 'all' || (item.rating !== undefined && String(item.rating) === ratingFilter);
+  // Suggested common tags for quick one-click classification
+  const suggestedTags = [
+    { ar: 'تصميم', en: 'Design' },
+    { ar: 'تسويق', en: 'Marketing' },
+    { ar: 'برمجة', en: 'Coding' },
+    { ar: 'سينمائي', en: 'Cinematic' },
+    { ar: 'شخصيات', en: 'Characters' },
+    { ar: 'شعار', en: 'Logo' },
+    { ar: 'سوشيال ميديا', en: 'Social' },
+    { ar: '3D', en: '3D' },
+    { ar: 'خيال علمي', en: 'Sci-Fi' },
+    { ar: 'إضاءة', en: 'Lighting' },
+  ];
 
-    return matchesSearch && matchesModel && matchesFavorite && matchesRating;
-  });
+  // Compute all unique tags and their frequency
+  const allUniqueTagsWithCount = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    history.forEach((item) => {
+      if (Array.isArray(item.tags)) {
+        item.tags.forEach((t) => {
+          const clean = t.trim().replace(/^#+/, '');
+          if (clean) {
+            counts[clean] = (counts[clean] || 0) + 1;
+          }
+        });
+      }
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [history]);
+
+  // Tag manipulation handlers
+  const handleAddTag = (itemId: string, tagToAdd: string) => {
+    const clean = tagToAdd.trim().replace(/^#+/, '');
+    if (!clean) return;
+    const item = history.find((h) => h.id === itemId);
+    if (!item) return;
+    const currentTags = item.tags || [];
+    if (currentTags.includes(clean)) {
+      showToast(lang === 'ar' ? `الوسم #${clean} مضاف مسبقاً` : `Tag #${clean} already exists`);
+      return;
+    }
+    const nextTags = [...currentTags, clean];
+    if (onUpdateTags) {
+      onUpdateTags(itemId, nextTags);
+    }
+    setNewTagInputs((prev) => ({ ...prev, [itemId]: '' }));
+    showToast(lang === 'ar' ? `✓ تم إضافة الوسم #${clean}` : `✓ Tag #${clean} added`);
+  };
+
+  const handleRemoveTag = (itemId: string, tagToRemove: string) => {
+    const item = history.find((h) => h.id === itemId);
+    if (!item) return;
+    const currentTags = item.tags || [];
+    const nextTags = currentTags.filter((t) => t !== tagToRemove);
+    if (onUpdateTags) {
+      onUpdateTags(itemId, nextTags);
+    }
+    showToast(lang === 'ar' ? `تم حذف الوسم #${tagToRemove}` : `Tag #${tagToRemove} removed`);
+  };
+
+  const handleApplyBulkTag = () => {
+    const clean = bulkTagInput.trim().replace(/^#+/, '');
+    if (!clean) {
+      showToast(lang === 'ar' ? 'يرجى إدخال اسم الوسم أولاً' : 'Please enter a tag name', true);
+      return;
+    }
+    if (selectedIds.length === 0) return;
+    if (onBulkUpdateTags) {
+      onBulkUpdateTags(selectedIds, clean);
+    } else if (onUpdateTags) {
+      selectedIds.forEach((id) => {
+        const item = history.find((h) => h.id === id);
+        if (item) {
+          const cur = item.tags || [];
+          if (!cur.includes(clean)) {
+            onUpdateTags(id, [...cur, clean]);
+          }
+        }
+      });
+    }
+    showToast(
+      lang === 'ar'
+        ? `✓ تم تطبيق الوسم #${clean} على ${selectedIds.length} من العناصر بنجاح!`
+        : `✓ Applied tag #${clean} to ${selectedIds.length} items!`
+    );
+    setBulkTagInput('');
+    setShowBulkTagModal(false);
+  };
+
+  // Compute counts for each action type across the entire history
+  const actionCounts = React.useMemo(() => {
+    const counts = {
+      all: history.length,
+      generate: 0,
+      refine: 0,
+      translate: 0,
+      reverse: 0
+    };
+    history.forEach((item) => {
+      const act = item.actionType || 'generate';
+      if (act === 'refine') counts.refine++;
+      else if (act === 'translate') counts.translate++;
+      else if (act === 'reverse') counts.reverse++;
+      else counts.generate++;
+    });
+    return counts;
+  }, [history]);
+
+  // Count items with no tags
+  const untaggedCount = React.useMemo(() => {
+    return history.filter(item => !Array.isArray(item.tags) || item.tags.length === 0).length;
+  }, [history]);
+
+  // Highlight keyword matches within prompt text snippets
+  const highlightMatch = (text: string, term: string) => {
+    if (!term || !text) return text;
+    const trimmed = term.trim();
+    if (!trimmed) return text;
+    const cleanTag = trimmed.startsWith('#') ? trimmed.substring(1) : trimmed;
+    const query = cleanTag || trimmed;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try {
+      const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+      if (parts.length <= 1) return text;
+      return (
+        <>
+          {parts.map((part, i) =>
+            part.toLowerCase() === query.toLowerCase() ? (
+              <mark key={i} className="bg-amber-200 dark:bg-amber-900/60 text-amber-950 dark:text-amber-200 font-bold px-0.5 rounded">
+                {part}
+              </mark>
+            ) : (
+              part
+            )
+          )}
+        </>
+      );
+    } catch {
+      return text;
+    }
+  };
+
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() ||
+    actionTypeFilter !== 'all' ||
+    selectedTag !== 'all' ||
+    modelFilter !== 'all' ||
+    ratingFilter !== 'all' ||
+    showFavoritesOnly ||
+    sortBy !== 'newest'
+  );
+
+  const resetAllFilters = () => {
+    setSearchTerm('');
+    setActionTypeFilter('all');
+    setSelectedTag('all');
+    setModelFilter('all');
+    setRatingFilter('all');
+    setShowFavoritesOnly(false);
+    setSortBy('newest');
+    if (searchInputRef.current) {
+      searchInputRef.current.value = '';
+    }
+  };
+
+  // Real-time filter and sort items across keyword, tag, action type, model, rating, and favorites
+  const filteredHistory = React.useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const cleanSearchTag = term.startsWith('#') ? term.substring(1) : term;
+    
+    return history.filter((item) => {
+      // 1. Keyword search across originalText, optimizedText, translatedText, notes, category, and tags
+      const matchesSearch =
+        !term ||
+        item.originalText.toLowerCase().includes(term) ||
+        item.optimizedText.toLowerCase().includes(term) ||
+        (item.translatedText && item.translatedText.toLowerCase().includes(term)) ||
+        (item.notes && item.notes.toLowerCase().includes(term)) ||
+        (item.category && item.category.toLowerCase().includes(term)) ||
+        (Array.isArray(item.tags) &&
+          item.tags.some(
+            (tag) =>
+              tag.toLowerCase().includes(term) ||
+              tag.toLowerCase().includes(cleanSearchTag)
+          ));
+
+      // 2. Action Type filter (generate, refine, translate, reverse)
+      const itemAction = item.actionType || 'generate';
+      const matchesAction =
+        actionTypeFilter === 'all' || itemAction === actionTypeFilter;
+
+      // 3. Tag filter (all, specific tag, or __untagged__)
+      const matchesTag =
+        selectedTag === 'all' ||
+        (selectedTag === '__untagged__'
+          ? !Array.isArray(item.tags) || item.tags.length === 0
+          : Array.isArray(item.tags) && item.tags.includes(selectedTag));
+
+      // 4. Model filter
+      const matchesModel = modelFilter === 'all' || item.model === modelFilter;
+
+      // 5. Favorites filter
+      const matchesFavorite = !showFavoritesOnly || !!item.isFavorite;
+
+      // 6. Rating filter
+      const matchesRating =
+        ratingFilter === 'all' ||
+        (item.rating !== undefined && String(item.rating) === ratingFilter);
+
+      return (
+        matchesSearch &&
+        matchesAction &&
+        matchesTag &&
+        matchesModel &&
+        matchesFavorite &&
+        matchesRating
+      );
+    }).sort((a, b) => {
+      if (sortBy === 'oldest') {
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      }
+      if (sortBy === 'highest-rated') {
+        return (b.rating || 0) - (a.rating || 0);
+      }
+      if (sortBy === 'longest') {
+        return (b.optimizedText?.length || 0) - (a.optimizedText?.length || 0);
+      }
+      // default: newest first
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+  }, [history, searchTerm, actionTypeFilter, selectedTag, modelFilter, showFavoritesOnly, ratingFilter, sortBy]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10" id="prompt-history-panel">
@@ -1696,16 +2092,36 @@ export default function PromptHistory({
           </div>
         </div>
 
-        {history.length > 0 && (
+        <div className="flex items-center gap-2.5 flex-wrap self-start md:self-center">
           <button
-            onClick={onClearHistory}
-            className="self-start md:self-center px-4 py-2 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-700 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5"
+            onClick={() => setShowDashboard(!showDashboard)}
+            className="px-3.5 py-2 text-xs font-bold text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            title={lang === 'ar' ? 'عرض أو إخفاء لوحة الإحصائيات البيانية' : 'Toggle Analytics Dashboard'}
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>{lang === 'ar' ? 'مسح السجل بالكامل' : 'Clear All Records'}</span>
+            <BarChart3 className="w-3.5 h-3.5 text-[#c29b40]" />
+            <span>{showDashboard ? (lang === 'ar' ? 'إخفاء لوحة البيانات' : 'Hide Dashboard') : (lang === 'ar' ? 'عرض لوحة البيانات (Dashboard)' : 'Show Dashboard')}</span>
           </button>
-        )}
+
+          {history.length > 0 && (
+            <button
+              onClick={onClearHistory}
+              className="px-4 py-2 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-700 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{lang === 'ar' ? 'مسح السجل بالكامل' : 'Clear All Records'}</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Analytics Dashboard (Recharts Powered) */}
+      {showDashboard && (
+        <PromptHistoryDashboard
+          history={history}
+          lang={lang}
+          isOpenDefault={true}
+        />
+      )}
 
       {/* Backup & Restore Utility Section */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 mb-8 shadow-sm">
@@ -1736,6 +2152,17 @@ export default function PromptHistory({
               className="hidden"
             />
             
+            {/* Export History to Styled PDF */}
+            <button
+              onClick={() => openPdfModal('all')}
+              disabled={history.length === 0}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#916a24] via-[#c29b40] to-[#b38d35] hover:opacity-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto shadow-xs border border-[#b38d35]"
+              title={lang === 'ar' ? 'تصدير السجل إلى ملف PDF منسق للطباعة أو الحفظ الرقمي' : 'Export History to Styled PDF'}
+            >
+              <Printer className="w-4 h-4" />
+              <span>{lang === 'ar' ? 'تصدير السجل كـ PDF منسق' : 'Export Styled PDF'}</span>
+            </button>
+
             <button
               onClick={handleExportBackup}
               disabled={history.length === 0}
@@ -1743,6 +2170,15 @@ export default function PromptHistory({
             >
               <Download className="w-4 h-4 text-stone-600" />
               <span>{lang === 'ar' ? 'إنشاء نسخة احتياطية (JSON)' : 'Export Backup (JSON)'}</span>
+            </button>
+
+            <button
+              onClick={handleExportAllCSVDirect}
+              disabled={history.length === 0}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-500/10 hover:bg-amber-500/15 border border-[#c29b40]/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+            >
+              <Download className="w-4 h-4 text-[#c29b40]" />
+              <span>{lang === 'ar' ? 'تصدير كمستند CSV فوري' : 'Export Instant CSV'}</span>
             </button>
 
             <button
@@ -1961,7 +2397,7 @@ export default function PromptHistory({
                         <Clock className="w-3.5 h-3.5 shrink-0" />
                         <span>
                           {lang === 'ar' 
-                            ? `آخر مزامنة عبر [${backupConfig.provider}]: ${new Date(backupConfig.lastBackupTime).toLocaleString('ar-EG')}` 
+                            ? `آخر مزامنة عبر [${backupConfig.provider}]: ${new Date(backupConfig.lastBackupTime).toLocaleString('ar-u-nu-latn')}` 
                             : `Last sync via [${backupConfig.provider}]: ${new Date(backupConfig.lastBackupTime).toLocaleString()}`}
                         </span>
                       </p>
@@ -2151,71 +2587,468 @@ export default function PromptHistory({
       ) : (
         <div className="space-y-6">
           
-          {/* Filtering toolbar */}
-          <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm flex flex-col sm:flex-row gap-3 items-stretch justify-between">
-            {/* Search input */}
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder={
-                  lang === 'ar'
-                    ? 'ابحث في محتوى المدخلات أو الأوامر المحسنة...'
-                    : 'Search keywords in prompt context or output...'
-                }
-                className="w-full text-xs rounded-xl border border-stone-300 pl-10 pr-4 py-2.5 bg-stone-50/50 focus:outline-none focus:ring-1 focus:ring-[#c29b40] font-sans"
-              />
+          {/* Real-time Search and Filter Bar */}
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-4 sm:p-5 shadow-sm space-y-4">
+            
+            {/* Row 1: Search Input + Main Control Actions */}
+            <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+              
+              {/* Instant Real-Time Search Box */}
+              <div className="relative flex-1 group">
+                <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${
+                  searchTerm ? 'text-[#c29b40]' : 'text-stone-400 group-focus-within:text-[#c29b40]'
+                }`} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={
+                    lang === 'ar'
+                      ? 'بحث فوري بالكلمات المفتاحية، النص، الوسوم... (اضغط / للتركيز)'
+                      : 'Instant search keywords, text, tags... (Press / to focus)'
+                  }
+                  className="w-full text-xs sm:text-sm rounded-xl border border-stone-250 dark:border-stone-700 pl-10 pr-24 py-2.5 bg-stone-50/70 dark:bg-stone-800/60 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#c29b40]/40 focus:border-[#c29b40] transition-all font-sans"
+                />
+
+                {/* Inside Input Action Indicators (Match count + Clear button + Keyboard shortcut pill) */}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('');
+                        searchInputRef.current?.focus();
+                      }}
+                      className="p-1 rounded-full text-stone-400 hover:text-rose-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
+                      title={lang === 'ar' ? 'مسح البحث (Esc)' : 'Clear search (Esc)'}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  
+                  {/* Results Count Badge in Latin Numerals */}
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-stone-700 text-stone-600 dark:text-stone-300 select-none">
+                    {filteredHistory.length}/{history.length}
+                  </span>
+
+                  {!searchTerm && (
+                    <kbd className="hidden sm:inline-block text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-700 text-stone-400 bg-white dark:bg-stone-800 select-none">
+                      /
+                    </kbd>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Action Buttons & Secondary Dropdowns */}
+              <div className="flex flex-wrap items-center gap-2">
+                
+                {/* Favorites Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                  className={`text-xs px-3 py-2 rounded-xl border flex items-center gap-1.5 cursor-pointer transition-all ${
+                    showFavoritesOnly
+                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 font-bold shadow-2xs'
+                      : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-250 dark:border-stone-700 hover:text-stone-900 hover:border-stone-400'
+                  }`}
+                  title={lang === 'ar' ? 'عرض الأوامر المفضلة فقط' : 'Show starred favorites only'}
+                >
+                  <Star className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-amber-500 text-amber-500' : 'text-stone-400'}`} />
+                  <span>{lang === 'ar' ? 'المفضلة' : 'Favorites'}</span>
+                  {showFavoritesOnly && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold">
+                      {history.filter(h => h.isFavorite).length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Model Selector */}
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={modelFilter}
+                    onChange={(e) => setModelFilter(e.target.value)}
+                    className="text-xs rounded-xl border border-stone-250 dark:border-stone-700 px-2.5 py-2 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 focus:ring-1 focus:ring-[#c29b40] cursor-pointer"
+                  >
+                    <option value="all">{lang === 'ar' ? 'كل النماذج' : 'All Models'}</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="chatgpt">OpenAI ChatGPT</option>
+                    <option value="claude">Anthropic Claude</option>
+                    <option value="notebooklm">Google NotebookLM</option>
+                    <option value="midjourney">Midjourney</option>
+                    <option value="meta">Meta AI / Llama 3</option>
+                  </select>
+                </div>
+
+                {/* Rating Filter */}
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={ratingFilter}
+                    onChange={(e) => setRatingFilter(e.target.value)}
+                    className="text-xs rounded-xl border border-stone-250 dark:border-stone-700 px-2.5 py-2 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 focus:ring-1 focus:ring-[#c29b40] cursor-pointer"
+                  >
+                    <option value="all">{lang === 'ar' ? 'كل التقييمات' : 'All Ratings'}</option>
+                    <option value="5">★★★★★ (5/5)</option>
+                    <option value="4">★★★★☆ (4/5)</option>
+                    <option value="3">★★★☆☆ (3/5)</option>
+                    <option value="2">★★☆☆☆ (2/5)</option>
+                    <option value="1">★☆☆☆☆ (1/5)</option>
+                  </select>
+                </div>
+
+                {/* Sort Order Selector */}
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="text-xs rounded-xl border border-stone-250 dark:border-stone-700 px-2.5 py-2 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 focus:ring-1 focus:ring-[#c29b40] cursor-pointer"
+                    title={lang === 'ar' ? 'ترتيب السجل' : 'Sort prompt records'}
+                  >
+                    <option value="newest">{lang === 'ar' ? 'الأحدث أولاً' : 'Newest First'}</option>
+                    <option value="oldest">{lang === 'ar' ? 'الأقدم أولاً' : 'Oldest First'}</option>
+                    <option value="highest-rated">{lang === 'ar' ? 'الأعلى تقييماً' : 'Highest Rated'}</option>
+                    <option value="longest">{lang === 'ar' ? 'الأطول محتوى' : 'Longest Output'}</option>
+                  </select>
+                </div>
+
+                {/* Compare Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenCompare()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#c29b40]/40 bg-amber-500/10 hover:bg-amber-500/20 text-[#8c6a1e] dark:text-amber-300 text-xs font-bold transition-all cursor-pointer shadow-3xs hover:border-[#c29b40]"
+                  title={lang === 'ar' ? 'أداة مقارنة البرومبت جنباً إلى جنب' : 'Side-by-Side Prompt Comparison Tool'}
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-[#c29b40]" />
+                  <span>{lang === 'ar' ? 'مقارنة' : 'Compare'}</span>
+                </button>
+
+                {/* PDF Export Button */}
+                <button
+                  type="button"
+                  onClick={() => openPdfModal(showFavoritesOnly ? 'favorites' : 'filtered')}
+                  disabled={history.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-900 bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 text-xs font-bold transition-all cursor-pointer shadow-3xs"
+                  title={lang === 'ar' ? 'تصدير كـ PDF' : 'Export as PDF'}
+                >
+                  <Printer className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                  <span>PDF</span>
+                </button>
+
+              </div>
             </div>
 
-            {/* Model Filter */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                className={`text-xs px-3 py-2.5 rounded-xl border flex items-center gap-1.5 cursor-pointer transition-all ${
-                  showFavoritesOnly
-                    ? 'bg-amber-50 text-amber-750 border-amber-250 font-black'
-                    : 'bg-white text-stone-600 border-stone-300 hover:text-stone-800 hover:border-stone-450'
-                }`}
-              >
-                <Star className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-amber-500 text-amber-500' : ''}`} />
-                <span>{lang === 'ar' ? 'المفضلة فقط' : 'Favorites Only'}</span>
-              </button>
-
+            {/* Row 2: Action Type Real-Time Filter Pills */}
+            <div className="pt-2 border-t border-stone-150 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-stone-400 shrink-0" />
-                <select
-                  value={modelFilter}
-                  onChange={(e) => setModelFilter(e.target.value)}
-                  className="text-xs rounded-xl border border-stone-300 p-2.5 bg-white text-stone-800 focus:ring-1 focus:ring-[#c29b40]"
-                >
-                  <option value="all">{lang === 'ar' ? 'جميع النماذج' : 'All Models'}</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="chatgpt">OpenAI ChatGPT</option>
-                  <option value="claude">Anthropic Claude</option>
-                  <option value="notebooklm">Google NotebookLM</option>
-                  <option value="midjourney">Midjourney</option>
-                </select>
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-[#c29b40]" />
+                  <span>{lang === 'ar' ? 'نوع العملية:' : 'Action Type:'}</span>
+                </span>
               </div>
 
-              {/* Rating Filter Select */}
-              <div className="flex items-center gap-1.5">
-                <Star className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
-                <select
-                  value={ratingFilter}
-                  onChange={(e) => setRatingFilter(e.target.value)}
-                  className="text-xs rounded-xl border border-stone-300 p-2.5 bg-white text-stone-800 focus:ring-1 focus:ring-[#c29b40]"
+              {/* Action Type Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* 1. All */}
+                <button
+                  type="button"
+                  onClick={() => setActionTypeFilter('all')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    actionTypeFilter === 'all'
+                      ? 'bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-2xs'
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700'
+                  }`}
                 >
-                  <option value="all">{lang === 'ar' ? 'جميع التقييمات' : 'All Ratings'}</option>
-                  <option value="5">★★★★★ (5/5)</option>
-                  <option value="4">★★★★☆ (4/5)</option>
-                  <option value="3">★★★☆☆ (3/5)</option>
-                  <option value="2">★★☆☆☆ (2/5)</option>
-                  <option value="1">★☆☆☆☆ (1/5)</option>
-                </select>
+                  <span>{lang === 'ar' ? 'الكل' : 'All'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    actionTypeFilter === 'all'
+                      ? 'bg-white/20 text-white dark:bg-black/20 dark:text-stone-900'
+                      : 'bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
+                  }`}>
+                    {actionCounts.all}
+                  </span>
+                </button>
+
+                {/* 2. Generate */}
+                <button
+                  type="button"
+                  onClick={() => setActionTypeFilter('generate')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                    actionTypeFilter === 'generate'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs ring-1 ring-emerald-400'
+                      : 'bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{lang === 'ar' ? 'توليد أساسي' : 'Base Synthesis'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    actionTypeFilter === 'generate' ? 'bg-black/20 text-white' : 'bg-emerald-200/60 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-200'
+                  }`}>
+                    {actionCounts.generate}
+                  </span>
+                </button>
+
+                {/* 3. Refine */}
+                <button
+                  type="button"
+                  onClick={() => setActionTypeFilter('refine')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                    actionTypeFilter === 'refine'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-2xs ring-1 ring-amber-400'
+                      : 'bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                  }`}
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>{lang === 'ar' ? 'تحسين وتعديل' : 'Refine & Polish'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    actionTypeFilter === 'refine' ? 'bg-black/20 text-white' : 'bg-amber-200/60 dark:bg-amber-800 text-amber-900 dark:text-amber-200'
+                  }`}>
+                    {actionCounts.refine}
+                  </span>
+                </button>
+
+                {/* 4. Translate */}
+                <button
+                  type="button"
+                  onClick={() => setActionTypeFilter('translate')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                    actionTypeFilter === 'translate'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs ring-1 ring-indigo-400'
+                      : 'bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>{lang === 'ar' ? 'ترجمة وتعريب' : 'Translate & Expand'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    actionTypeFilter === 'translate' ? 'bg-black/20 text-white' : 'bg-indigo-200/60 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-200'
+                  }`}>
+                    {actionCounts.translate}
+                  </span>
+                </button>
+
+                {/* 5. Reverse */}
+                <button
+                  type="button"
+                  onClick={() => setActionTypeFilter('reverse')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                    actionTypeFilter === 'reverse'
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-2xs ring-1 ring-sky-400'
+                      : 'bg-sky-50/70 dark:bg-sky-950/30 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/40'
+                  }`}
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>{lang === 'ar' ? 'هندسة عكسية' : 'Image Reverse'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    actionTypeFilter === 'reverse' ? 'bg-black/20 text-white' : 'bg-sky-200/60 dark:bg-sky-800 text-sky-900 dark:text-sky-200'
+                  }`}>
+                    {actionCounts.reverse}
+                  </span>
+                </button>
               </div>
             </div>
+
+            {/* Row 3: Tags Filter & Pills */}
+            <div className="pt-2 border-t border-stone-150 dark:border-stone-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5 text-[#c29b40]" />
+                  <span className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                    {lang === 'ar' ? 'تصفية بالوسوم (Tags):' : 'Filter by Tags:'}
+                  </span>
+                  {selectedTag !== 'all' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-300 dark:border-amber-700">
+                      <Hash className="w-3 h-3 text-[#c29b40]" />
+                      <span>{selectedTag === '__untagged__' ? (lang === 'ar' ? 'بدون وسوم' : 'Untagged') : selectedTag}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTag('all')}
+                        className="ml-1 text-stone-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        title={lang === 'ar' ? 'إلغاء تصفية الوسم' : 'Clear tag filter'}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                {allUniqueTagsWithCount.length > 0 && (
+                  <span className="text-[11px] font-mono text-stone-400">
+                    {lang === 'ar' ? `${allUniqueTagsWithCount.length} وسم متوفر` : `${allUniqueTagsWithCount.length} tags available`}
+                  </span>
+                )}
+              </div>
+
+              {/* Tag Pills List */}
+              <div className="flex flex-wrap items-center gap-1.5 max-h-32 overflow-y-auto pr-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTag('all')}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedTag === 'all'
+                      ? 'bg-stone-850 dark:bg-stone-100 text-white dark:text-stone-900 shadow-2xs'
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700'
+                  }`}
+                >
+                  <span>{lang === 'ar' ? 'جميع الوسوم' : 'All Tags'}</span>
+                  <span className="text-[10px] font-mono font-bold opacity-80">({history.length})</span>
+                </button>
+
+                {untaggedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTag(selectedTag === '__untagged__' ? 'all' : '__untagged__')}
+                    className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1 border ${
+                      selectedTag === '__untagged__'
+                        ? 'bg-stone-700 text-white border-stone-700 shadow-2xs'
+                        : 'bg-stone-50 dark:bg-stone-800 text-stone-500 border-stone-200 dark:border-stone-700 hover:bg-stone-100'
+                    }`}
+                  >
+                    <span>{lang === 'ar' ? 'بدون وسوم' : 'Untagged'}</span>
+                    <span className="text-[10px] font-mono font-bold opacity-80">({untaggedCount})</span>
+                  </button>
+                )}
+
+                {allUniqueTagsWithCount.map(([tag, count]) => {
+                  const isActive = selectedTag === tag;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setSelectedTag(isActive ? 'all' : tag)}
+                      className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-[#c29b40] text-white font-bold shadow-xs ring-1 ring-amber-300'
+                          : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-amber-500/10 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:border-amber-300 hover:text-amber-700 dark:hover:text-amber-400'
+                      }`}
+                    >
+                      <Hash className={`w-3 h-3 ${isActive ? 'text-white' : 'text-[#c29b40]'}`} />
+                      <span>{tag}</span>
+                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                        isActive ? 'bg-black/20 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Row 4: Active Filters Badges Bar & Instant Reset */}
+            {hasActiveFilters && (
+              <div className="pt-2.5 border-t border-stone-150 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2.5 bg-amber-50/50 dark:bg-amber-950/20 p-2.5 rounded-xl border border-amber-200/60 dark:border-amber-900/40">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold text-amber-900 dark:text-amber-300">
+                    {lang === 'ar' ? 'الفلاتر النشطة:' : 'Active Filters:'}
+                  </span>
+
+                  {/* Search Term Chip */}
+                  {searchTerm.trim() && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 px-2 py-0.5 rounded-md border border-stone-250 dark:border-stone-700">
+                      <Search className="w-3 h-3 text-[#c29b40]" />
+                      <span>"{searchTerm}"</span>
+                      <button
+                        type="button"
+                        onClick={() => setSearchTerm('')}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {/* Action Type Chip */}
+                  {actionTypeFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 px-2 py-0.5 rounded-md border border-stone-250 dark:border-stone-700">
+                      <span>⚡ {getActionLabel({ actionType: actionTypeFilter })}</span>
+                      <button
+                        type="button"
+                        onClick={() => setActionTypeFilter('all')}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {/* Tag Chip */}
+                  {selectedTag !== 'all' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 px-2 py-0.5 rounded-md border border-stone-250 dark:border-stone-700">
+                      <Hash className="w-3 h-3 text-[#c29b40]" />
+                      <span>{selectedTag === '__untagged__' ? (lang === 'ar' ? 'بدون وسوم' : 'Untagged') : selectedTag}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTag('all')}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {/* Model Chip */}
+                  {modelFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 px-2 py-0.5 rounded-md border border-stone-250 dark:border-stone-700">
+                      <span>🤖 {getModelLabel(modelFilter)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setModelFilter('all')}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {/* Rating Chip */}
+                  {ratingFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 px-2 py-0.5 rounded-md border border-stone-250 dark:border-stone-700">
+                      <span>⭐ {ratingFilter}★</span>
+                      <button
+                        type="button"
+                        onClick={() => setRatingFilter('all')}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {/* Favorites Chip */}
+                  {showFavoritesOnly && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 px-2 py-0.5 rounded-md border border-stone-250 dark:border-stone-700">
+                      <span>⭐ {lang === 'ar' ? 'المفضلة' : 'Favorites'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFavoritesOnly(false)}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                {/* Match Counter + Reset Button */}
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-mono font-bold text-amber-900 dark:text-amber-300">
+                    {lang === 'ar'
+                      ? `تم العثور على ${filteredHistory.length} من أصل ${history.length} أمراً`
+                      : `Found ${filteredHistory.length} of ${history.length} prompts`}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="text-xs font-bold text-rose-700 dark:text-rose-400 hover:text-rose-800 bg-white dark:bg-stone-800 border border-rose-200 dark:border-rose-900 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer hover:bg-rose-50"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>{lang === 'ar' ? 'إعادة تعيين الكل' : 'Clear All'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Bulk Selection and Batch Actions Tool */}
@@ -2254,6 +3087,24 @@ export default function PromptHistory({
                     {lang === 'ar' ? 'العمليات الجماعية:' : 'Batch Actions:'}
                   </span>
                   
+                  {/* Compare Selected Prompts */}
+                  <button
+                    onClick={() => handleOpenCompare()}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs transition-all rounded-lg font-bold border cursor-pointer shadow-sm ${
+                      selectedIds.length === 2
+                        ? 'bg-gradient-to-r from-[#916a24] to-[#c29b40] text-white border-[#b38d35] ring-2 ring-amber-400/40'
+                        : 'bg-white text-stone-700 hover:bg-stone-50 border-stone-300'
+                    }`}
+                    title={lang === 'ar' ? 'مقارنة الأوامر المحددة جنباً إلى جنب' : 'Compare Selected Prompts Side-by-Side'}
+                  >
+                    <ArrowLeftRight className={`w-3.5 h-3.5 ${selectedIds.length === 2 ? 'text-white' : 'text-[#c29b40]'}`} />
+                    <span>
+                      {selectedIds.length === 2
+                        ? (lang === 'ar' ? 'مقارنة الأمرين المحددين (2)' : 'Compare 2 Selected')
+                        : (lang === 'ar' ? 'مقارنة الأوامر' : 'Compare Prompts')}
+                    </span>
+                  </button>
+
                   {/* Export Selected as JSON */}
                   <button
                     onClick={handleBulkExportJSON}
@@ -2276,12 +3127,22 @@ export default function PromptHistory({
 
                   {/* Export Selected as PDF */}
                   <button
-                    onClick={handleBulkExportPDF}
+                    onClick={() => openPdfModal('selected')}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white text-stone-700 hover:bg-stone-50 transition-all rounded-lg font-bold border border-stone-300 cursor-pointer shadow-sm"
                     title={lang === 'ar' ? 'تصدير المحدد كـ PDF' : 'Export Selected as PDF'}
                   >
                     <Printer className="w-3.5 h-3.5 text-rose-500" />
                     <span>{lang === 'ar' ? 'تصدير PDF' : 'Export PDF'}</span>
+                  </button>
+
+                  {/* Tag Selected Items */}
+                  <button
+                    onClick={() => setShowBulkTagModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-600 text-white hover:bg-amber-700 transition-all rounded-lg font-bold border border-amber-600 cursor-pointer shadow-sm"
+                    title={lang === 'ar' ? 'إضافة وسم لجميع العناصر المحددة' : 'Add tag to all selected items'}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    <span>{lang === 'ar' ? 'إضافة وسم' : 'Add Tag'}</span>
                   </button>
 
                   {/* Delete Selected Items */}
@@ -2313,20 +3174,42 @@ export default function PromptHistory({
 
           {/* List of history items */}
           {filteredHistory.length === 0 ? (
-            <div className="p-8 text-center text-stone-500 bg-white rounded-xl border border-stone-200 text-xs">
-              {lang === 'ar' ? 'لا توجد نتائج مطابقة لبحثك الحالي.' : 'No items matched your search filters.'}
+            <div className="p-10 text-center bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-sm max-w-lg mx-auto space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center text-[#c29b40]">
+                <Search className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-stone-800 dark:text-stone-100">
+                {lang === 'ar' ? 'لم يتم العثور على أي أوامر مطابقة' : 'No matching prompt records found'}
+              </h4>
+              <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
+                {searchTerm
+                  ? (lang === 'ar' ? `لا توجد نتائج تطابق كلمة البحث "${searchTerm}" أو الفلاتر المحددة.` : `No prompt records matched keyword "${searchTerm}" or active filters.`)
+                  : (lang === 'ar' ? 'لا توجد أوامر تطابق الفلاتر المحددة حالياً. جرب توسيع معايير التصفية.' : 'No prompt records matched the selected filters. Try broadening your criteria.')}
+              </p>
+              {hasActiveFilters && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="px-4 py-2 text-xs font-bold bg-[#c29b40] hover:bg-[#a88432] text-white rounded-xl shadow transition-all cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{lang === 'ar' ? 'مسح الفلاتر وعرض كافة الأوامر' : 'Reset Filters & Show All'}</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredHistory.map((item) => {
+              {filteredHistory.slice(0, visibleCount).map((item) => {
                 const isSelected = selectedIds.includes(item.id);
                 const isExpanded = expandedId === item.id;
                 const date = new Date(item.timestamp);
-                const formattedDate = date.toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+                const formattedDate = date.toLocaleTimeString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
                   hour: '2-digit',
                   minute: '2-digit',
                   second: '2-digit'
-                }) + ' - ' + date.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+                }) + ' - ' + date.toLocaleDateString(lang === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
                   month: 'short',
                   day: 'numeric'
                 });
@@ -2366,14 +3249,38 @@ export default function PromptHistory({
                         </span>
 
                         {/* Concept Brief */}
-                        <div>
-                          <h4 className="text-xs sm:text-sm font-bold text-stone-800 line-clamp-1 text-right rtl:text-right" dir="auto">
-                            {item.originalText}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs sm:text-sm font-bold text-stone-800 dark:text-stone-100 line-clamp-1 text-right rtl:text-right" dir="auto">
+                            {highlightMatch(item.originalText, searchTerm)}
                           </h4>
-                          <span className="text-[10px] text-stone-400 font-medium flex items-center gap-1 mt-0.5">
-                            <Calendar className="w-3 h-3" />
-                            <span>{formattedDate}</span>
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-[10px] text-stone-400 font-medium flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span>{formattedDate}</span>
+                            </span>
+
+                            {/* Tags display in summary */}
+                            {Array.isArray(item.tags) && item.tags.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                {item.tags.map((tag) => (
+                                  <button
+                                    key={tag}
+                                    type="button"
+                                    onClick={() => setSelectedTag(selectedTag === tag ? 'all' : tag)}
+                                    className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                                      selectedTag === tag
+                                        ? 'bg-[#c29b40] text-white'
+                                        : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/20'
+                                    }`}
+                                    title={lang === 'ar' ? `تصفية حسب #${tag}` : `Filter by #${tag}`}
+                                  >
+                                    <Hash className="w-2.5 h-2.5 text-[#c29b40]" />
+                                    <span>{tag}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -2500,7 +3407,7 @@ export default function PromptHistory({
                               {lang === 'ar' ? 'فكرة المدخل والمسودة الأساسية' : 'Raw Prompt Idea Input'}
                             </span>
                             <div className="text-xs text-stone-700 leading-relaxed font-sans whitespace-pre-wrap text-right rtl:text-right" dir="auto">
-                              {item.originalText}
+                              {highlightMatch(item.originalText, searchTerm)}
                             </div>
                           </div>
 
@@ -2517,10 +3424,108 @@ export default function PromptHistory({
                               )}
                             </div>
                             <div className="text-xs text-stone-900 font-sans leading-relaxed whitespace-pre-wrap max-h-[250px] overflow-y-auto text-right rtl:text-right" dir="auto">
-                              {item.optimizedText}
+                              {highlightMatch(item.optimizedText, searchTerm)}
                             </div>
                           </div>
 
+                        </div>
+
+                        {/* Custom Tags & Keywords Management */}
+                        <div className="p-4 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 rounded-lg bg-[#c29b40]/10 text-[#916a24] dark:text-[#c29b40]">
+                                <Tag className="w-3.5 h-3.5" />
+                              </div>
+                              <h5 className="text-xs font-bold text-stone-800 dark:text-stone-100">
+                                {lang === 'ar' ? 'الوسوم والتصنيفات المخصصة (Tags):' : 'Custom Tags & Keywords:'}
+                              </h5>
+                            </div>
+                            <span className="text-[10px] text-stone-400">
+                              {lang === 'ar' 
+                                ? 'تساعدك الوسوم على تنظيم وتجميع الأوامر وسرعة البحث عنها لاحقاً' 
+                                : 'Tags help you organize, group, and quickly find prompts later'}
+                            </span>
+                          </div>
+
+                          {/* Existing tags list */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {Array.isArray(item.tags) && item.tags.length > 0 ? (
+                              item.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800 group"
+                                >
+                                  <Hash className="w-3 h-3 text-[#c29b40]" />
+                                  <span>{tag}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTag(item.id, tag)}
+                                    className="p-0.5 hover:bg-amber-200/60 dark:hover:bg-amber-900/60 rounded text-amber-600 dark:text-amber-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                    title={lang === 'ar' ? `حذف الوسم #${tag}` : `Remove tag #${tag}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-stone-400 italic">
+                                {lang === 'ar' ? 'لا توجد وسوم مضافة لهذا الأمر بعد.' : 'No tags added to this prompt yet.'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Inline tag input */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <div className="relative flex-1 min-w-[200px] max-w-md">
+                              <Hash className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={newTagInputs[item.id] || ''}
+                                onChange={(e) => setNewTagInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddTag(item.id, newTagInputs[item.id] || '');
+                                  }
+                                }}
+                                placeholder={lang === 'ar' ? 'أضف وسماً واضغط Enter (مثال: تصميم، شعار، كود)...' : 'Add tag and press Enter (e.g. design, logo, code)...'}
+                                className="w-full text-xs rounded-lg border border-stone-300 dark:border-stone-700 pl-8 pr-3 py-1.5 bg-stone-50 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-[#c29b40]"
+                              />
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleAddTag(item.id, newTagInputs[item.id] || '')}
+                              disabled={!(newTagInputs[item.id] || '').trim()}
+                              className="px-3 py-1.5 text-xs font-bold bg-[#c29b40] hover:bg-[#a88432] disabled:opacity-40 text-white rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{lang === 'ar' ? 'إضافة وسم' : 'Add Tag'}</span>
+                            </button>
+                          </div>
+
+                          {/* Suggested quick tags */}
+                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                            <span className="text-[10px] text-stone-400 ml-1">
+                              {lang === 'ar' ? 'مقترحات سريعة:' : 'Quick suggestions:'}
+                            </span>
+                            {suggestedTags.map(st => {
+                              const tagLabel = lang === 'ar' ? st.ar : st.en;
+                              const isAlreadyAdded = Array.isArray(item.tags) && item.tags.includes(tagLabel);
+                              if (isAlreadyAdded) return null;
+                              return (
+                                <button
+                                  key={st.en}
+                                  type="button"
+                                  onClick={() => handleAddTag(item.id, tagLabel)}
+                                  className="text-[10px] font-medium px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 hover:bg-amber-500/10 text-stone-600 dark:text-stone-300 hover:text-amber-700 border border-stone-200 dark:border-stone-700 hover:border-amber-300 transition-colors cursor-pointer"
+                                >
+                                  +{tagLabel}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
 
                         {/* Log Item Control Actions */}
@@ -2574,7 +3579,8 @@ export default function PromptHistory({
                             </button>
 
                             <button
-                              onClick={() => handleExportPDF(item)}
+                              type="button"
+                              onClick={() => openPdfModal('all', item)}
                               className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-900 border border-stone-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer hover:border-amber-200 animate-fade-in"
                             >
                               <Printer className="w-3.5 h-3.5 text-amber-200" />
@@ -2583,10 +3589,33 @@ export default function PromptHistory({
 
                             <button
                               onClick={() => onSendToTester(item.optimizedText)}
-                              className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold transition-all flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                             >
-                              <Cpu className="w-3.5 h-3.5 text-amber-200" />
-                              <span>{lang === 'ar' ? 'تجربة في المختبر' : 'Playground Test'}</span>
+                              <PenTool className="w-3.5 h-3.5 text-amber-200" />
+                              <span>{lang === 'ar' ? 'تعديل في المهندس' : 'Edit in Builder'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCompare(item.id)}
+                              className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-[#c29b40]/40 text-[#8c6a1e] dark:text-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs"
+                              title={lang === 'ar' ? 'مقارنة هذا الأمر مع أمر آخر في السجل' : 'Compare this prompt with another'}
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5 text-[#c29b40]" />
+                              <span>{lang === 'ar' ? 'مقارنة' : 'Compare'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShareItem(item);
+                                setIsShareModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#916a24] to-[#c29b40] hover:opacity-90 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs border border-[#b38d35]"
+                              title={lang === 'ar' ? 'مشاركة وفتح البرومبت في جيمني، شات جي بي تي، كلود...' : 'Share to Gemini, ChatGPT, Claude...'}
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>{lang === 'ar' ? 'مشاركة مع الذكاء' : 'Share to AI'}</span>
                             </button>
                           </div>
                         </div>
@@ -2599,8 +3628,173 @@ export default function PromptHistory({
             </div>
           )}
 
+          {filteredHistory.length > visibleCount && (
+            <div className="pt-6 pb-2 text-center">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((prev) => prev + 25)}
+                className="px-6 py-2.5 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 rounded-xl text-xs font-bold shadow-xs hover:border-[#c29b40] transition-all cursor-pointer"
+              >
+                {lang === 'ar' 
+                  ? `عرض المزيد من السجلات (${visibleCount} من أصل ${filteredHistory.length})` 
+                  : `Show More Prompts (${visibleCount} of ${filteredHistory.length})`}
+              </button>
+            </div>
+          )}
+
         </div>
       )}
+
+      {/* Bulk Tagging Modal */}
+      {showBulkTagModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-xs animate-fade-in"
+          onClick={() => setShowBulkTagModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-md bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-2xl p-6 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-stone-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-stone-800 dark:text-stone-100">
+                    {lang === 'ar' ? 'إضافة وسم جماعي للأوامر' : 'Batch Tag Prompts'}
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    {lang === 'ar' 
+                      ? `سيتم تطبيق الوسم على ${selectedIds.length} من العناصر المحددة` 
+                      : `Tag will be applied to ${selectedIds.length} selected items`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkTagModal(false)}
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                  {lang === 'ar' ? 'اسم الوسم (الكلمة المفتاحية):' : 'Tag Name (Keyword):'}
+                </label>
+                <div className="relative">
+                  <Hash className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={bulkTagInput}
+                    onChange={(e) => setBulkTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleApplyBulkTag();
+                      }
+                    }}
+                    placeholder={lang === 'ar' ? 'مثال: تصميم، فيديو، كود...' : 'e.g. design, video, coding...'}
+                    className="w-full text-xs rounded-xl border border-stone-300 dark:border-stone-700 pl-9 pr-3 py-2.5 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-[#c29b40]"
+                  />
+                </div>
+              </div>
+
+              {/* Existing & suggested tags for 1-click pick */}
+              <div>
+                <span className="block text-[11px] font-bold text-stone-500 mb-2">
+                  {lang === 'ar' ? 'أو اختر من الوسوم المقترحة/الحالية:' : 'Or pick from suggested/existing tags:'}
+                </span>
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1.5 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-200 dark:border-stone-800">
+                  {Array.from(new Set([
+                    ...allUniqueTagsWithCount.map(([t]) => t),
+                    ...suggestedTags.map(st => lang === 'ar' ? st.ar : st.en)
+                  ])).map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setBulkTagInput(tag)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                        bulkTagInput.trim().replace(/^#+/, '') === tag
+                          ? 'bg-[#c29b40] text-white border-[#c29b40] font-bold'
+                          : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-300'
+                      }`}
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100 dark:border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkTagModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl cursor-pointer"
+                >
+                  {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBulkTag}
+                  disabled={!bulkTagInput.trim()}
+                  className="px-5 py-2 text-xs font-bold bg-[#c29b40] hover:bg-[#a88432] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{lang === 'ar' ? 'تطبيق الوسم' : 'Apply Tag'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prompt Comparison Modal */}
+      <PromptCompareModal
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        history={history}
+        lang={lang}
+        initialPromptAId={comparePromptAId}
+        initialPromptBId={comparePromptBId}
+        onApplyToBuilder={onApplyToBuilder}
+        onSendToTester={onSendToTester}
+      />
+
+      {/* Share Prompt to AI Tools Modal */}
+      {shareItem && (
+        <SharePromptToAiModal
+          isOpen={isShareModalOpen}
+          onClose={() => {
+            setIsShareModalOpen(false);
+            setShareItem(null);
+          }}
+          promptText={shareItem.optimizedText || shareItem.originalText}
+          lang={lang}
+          model={shareItem.model}
+          tone={shareItem.tone}
+        />
+      )}
+
+      {/* Export to Styled PDF Modal */}
+      <ExportPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => {
+          setIsPdfModalOpen(false);
+          setPdfModalSingleItem(null);
+        }}
+        history={history}
+        filteredHistory={filteredHistory}
+        selectedIds={selectedIds}
+        lang={lang}
+        initialScope={pdfModalScope}
+        initialSingleItem={pdfModalSingleItem}
+      />
 
     </div>
   );

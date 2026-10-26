@@ -11,10 +11,11 @@ import {
   Image, Info, Flame, ToggleLeft, Activity, ListOrdered, Share2, Upload, Trash2, VideoOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ModelType } from '../types';
+import { ModelType, AppLanguage } from '../types';
+import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
 
 interface VideoPromptDesignerProps {
-  lang: 'ar' | 'en';
+  lang: AppLanguage;
   onSendToTester: (promptText: string) => void;
   onLogPrompt: (item: {
     originalText: string;
@@ -268,6 +269,16 @@ const ENGINE_CALIBRATIONS: Record<string, EngineParam> = {
     isInteger: true,
     extraParams: '--quality master',
     negativePromptHint: 'low quality, blurry borders, bad transitions, statics'
+  },
+  'Meta AI Video': {
+    name: 'Meta AI Video',
+    minMotion: 1,
+    maxMotion: 5,
+    defaultMotion: 3,
+    motionParamName: '--motion',
+    isInteger: true,
+    extraParams: '--smooth --loop_safety',
+    negativePromptHint: 'choppy framerate, still photo, static background, low resolution'
   }
 };
 
@@ -492,12 +503,13 @@ export default function VideoPromptDesigner({ lang, onSendToTester, onLogPrompt 
            `**NEGATIVE PROMPT:**\n\`\`\`text\n${buildNegativePrompt()}\n\`\`\`\n\n` +
            `**PLATFORM SETTINGS:**\n\`\`\`yaml\n${buildPlatformSettings()}\n\`\`\`\n\n` +
            `**MOTION BRUSH REGIONS:**\n- ${buildMotionBrushRegions()}\n\n` +
-           `**CAMERA PATH PLAN:**\n${buildCameraPath()}`;
+           `**CAMERA PATH PLAN:**\n${buildCameraPath()}\n\n` +
+           `---\n🔗 Generated via https://arabiprompt.ai.studio | صُمم عبر عرب برومبت`;
   };
 
   // UI Interactive action triggers
   const handleCopySection = (text: string, sectionId: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(appendSiteUrlToPrompt(text));
     setCopiedSection(sectionId);
     setTimeout(() => setCopiedSection(null), 2500);
   };
@@ -671,14 +683,35 @@ export default function VideoPromptDesigner({ lang, onSendToTester, onLogPrompt 
       pollVideoStatus(operationName);
     } catch (err: any) {
       console.error('[Veo Client] Generation error:', err);
-      if (err?.message && (err.message.includes('403') || err.message.includes('permission_denied') || err.message.includes('Quota exceeded') || err.message.includes('paid_model_flow'))) {
+      const errMsg = err?.message || String(err);
+      const lowerErr = errMsg.toLowerCase();
+      
+      const isQuotaOrLimit = lowerErr.includes('quota') || 
+                             lowerErr.includes('rate limit') || 
+                             lowerErr.includes('429') || 
+                             lowerErr.includes('exhausted') || 
+                             lowerErr.includes('limit exceeded') ||
+                             lowerErr.includes('resource_exhausted');
+                             
+      const isAuthOrPaid = lowerErr.includes('403') || 
+                           lowerErr.includes('permission_denied') || 
+                           lowerErr.includes('paid_model_flow') || 
+                           lowerErr.includes('billing');
+
+      if (isQuotaOrLimit) {
+        setVeoError(
+          lang === 'ar'
+            ? 'تنبيه الحصّة/الكوتة (Quota Limit): لقد تجاوزت الحد المسموح به لتوليد الفيديوهات عبر Google Veo 3.1. يرجى مراجعة خطة الاستهلاك والفوترة وترقية حسابك في لوحة تحكم Google AI Studio أو المحاولة لاحقاً.'
+            : 'Quota Limit Exceeded: You have exceeded the allocated generation quota for Google Veo 3.1. Please check your Google AI Studio billing details/rate limits, upgrade your plan, or try again later.'
+        );
+      } else if (isAuthOrPaid) {
         setVeoError(
           lang === 'ar'
             ? 'خطأ: يتطلب استدعاء نموذج Veo 3.1 تفعيل الحساب ذو المزايا المدفوعة (Paid Model Flow) أو تهيئة مفتاح خادم مفعل عليه الفوترة في لوحة إعدادات المنصة.'
             : 'Error: Veo 3.1 video generation requires a Paid Tier API key. Please check your credentials or upgrade in the standard platform Settings.'
         );
       } else {
-        setVeoError(err?.message || 'Error occurred starting video generation');
+        setVeoError(errMsg || 'Error occurred starting video generation');
       }
       setIsGenerating(false);
     }
@@ -1377,7 +1410,7 @@ export default function VideoPromptDesigner({ lang, onSendToTester, onLogPrompt 
                 className="w-full py-4 text-xs font-black rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/10 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Cpu className="w-4.5 h-4.5" />
-                <span>{lang === 'ar' ? 'إرسال البرومبت الإيجابي للمختبر 🚀' : 'Send Positive Prompt to Test Sandbox 🚀'}</span>
+                <span>{lang === 'ar' ? 'إرسال البرومبت الإيجابي للمُهندس 🚀' : 'Send Positive Prompt to Builder 🚀'}</span>
               </button>
             </div>
 

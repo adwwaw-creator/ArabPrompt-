@@ -6,5 +6,7 @@
   "firestoreDatabaseId": "ai-studio-35514d93-fc73-420a-9097-42e8645394a9",
   "storageBucket": "erudite-avatar-j8gvj.firebasestorage.app",
   "messagingSenderId": "1019081879519",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "1019081879519-4gneufghvm3tlbbd2h1ajlao3dej5huh.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }
