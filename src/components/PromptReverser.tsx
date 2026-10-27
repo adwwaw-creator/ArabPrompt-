@@ -31,6 +31,7 @@ import {
 import { ModelType, AppLanguage } from '../types';
 import { showToast } from './ToastNotification';
 import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
+import { checkGenerationQuota } from '../utils/subscriptionService';
 
 interface LearnedDna {
   palette: string[];
@@ -378,6 +379,28 @@ export default function PromptReverser({ lang, onSendToTester, onNavigateToBuild
           ? 'يرجى تحميل الصورة الثانية لتلقي ودمج الأسلوب البصري.' 
           : 'Please upload the second image to apply style/effects onto.'
       );
+      return;
+    }
+
+    const quota = checkGenerationQuota();
+    if (!quota.allowed) {
+      if (quota.requiresSubscription) {
+        setErrorMsg(
+          lang === 'ar'
+            ? '🛑 المنصة مدفوعة بالكامل 100%. يرجى الاشتراك في إحدى الباقات الاحترافية (Lite أو Pro) لتشغيل الهندسة العكسية.'
+            : '🛑 ArabPrompt is a 100% paid platform. Please subscribe to an active plan (Lite or Pro) for reverse engineering.'
+        );
+        window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+      } else {
+        setErrorMsg(
+          lang === 'ar'
+            ? `🛑 لقد استهلكت كامل حصتك اليومية (${quota.max} طلباً). يرجى ترقية باقتك للاستمرار.`
+            : `🛑 Daily quota reached (${quota.max} requests). Please upgrade to continue.`
+        );
+        window.dispatchEvent(new CustomEvent('quota-threshold-reached', {
+          detail: { threshold: 100, used: quota.max, remaining: 0, max: quota.max, plan: quota.plan }
+        }));
+      }
       return;
     }
 

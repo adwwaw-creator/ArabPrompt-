@@ -11,8 +11,55 @@ import {
   runTransaction,
   setDoc
 } from 'firebase/firestore';
-import { db } from './firebaseAuth';
+import { db, auth } from './firebaseAuth';
 import { AppLanguage } from '../types';
+
+export const EXCLUDED_ADMIN_EMAILS = [
+  'adwwaw@gmail.com',
+  'adouaourachid@gmail.com'
+];
+
+/**
+ * Checks if a given email is one of the excluded admin accounts
+ */
+export function isExcludedEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return EXCLUDED_ADMIN_EMAILS.includes(email.toLowerCase().trim());
+}
+
+/**
+ * Checks if the current session belongs to an excluded admin email (via parameter, localStorage, or auth)
+ * Ensures that logins/visits by adwwaw@gmail.com and adouaourachid@gmail.com are NEVER counted as visitors or active users.
+ */
+export function isCurrentSessionExcluded(explicitEmail?: string | null): boolean {
+  if (isExcludedEmail(explicitEmail)) return true;
+  try {
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem('arabprompt_exclude_from_analytics') === 'true') {
+        return true;
+      }
+      const currentStored = localStorage.getItem('arabprompt_current_user_email');
+      if (isExcludedEmail(currentStored)) {
+        localStorage.setItem('arabprompt_exclude_from_analytics', 'true');
+        return true;
+      }
+      const rememberedStored = localStorage.getItem('arabprompt_remembered_email');
+      if (isExcludedEmail(rememberedStored)) {
+        localStorage.setItem('arabprompt_exclude_from_analytics', 'true');
+        return true;
+      }
+    }
+  } catch {}
+  try {
+    if (auth?.currentUser?.email && isExcludedEmail(auth.currentUser.email)) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('arabprompt_exclude_from_analytics', 'true');
+      }
+      return true;
+    }
+  } catch {}
+  return false;
+}
 
 export interface VisitorLogItem {
   id: string;
@@ -104,9 +151,15 @@ function getOrCreateSessionId(): string {
 
 /**
  * Atomic genuine visitor record starting from ZERO (0)
+ * Bypasses tracking completely for excluded admin emails: adwwaw@gmail.com and adouaourachid@gmail.com
  */
-export async function trackRealVisitor(force = false): Promise<number | null> {
+export async function trackRealVisitor(force = false, userEmail?: string | null): Promise<number | null> {
   if (typeof window === 'undefined') return null;
+
+  // Never count visits or logins from registered admin emails (Adwwaw@gmail.com & adouaourachid@gmail.com)
+  if (isCurrentSessionExcluded(userEmail)) {
+    return null;
+  }
 
   const sessionKey = 'arabprompt_session_counted';
   const lastVisitTimeKey = 'arabprompt_last_visit_time';
@@ -221,8 +274,9 @@ export async function trackRealVisitor(force = false): Promise<number | null> {
 
 /**
  * Start Real-Time Presence for "الداخلين حالياً للموقع" (Active Online Visitors)
+ * Bypasses presence registration for excluded admin emails: adwwaw@gmail.com and adouaourachid@gmail.com
  */
-export function startActivePresence(onActiveCountChange: (count: number) => void): () => void {
+export function startActivePresence(onActiveCountChange: (count: number) => void, userEmail?: string | null): () => void {
   if (typeof window === 'undefined') return () => {};
 
   const sessionId = getOrCreateSessionId();
@@ -230,6 +284,14 @@ export function startActivePresence(onActiveCountChange: (count: number) => void
   const activeColRef = collection(db, 'visitors', 'global', 'active_sessions');
 
   const sendHeartbeat = async () => {
+    // If user is one of the excluded admin accounts, remove any active session and do not ping
+    if (isCurrentSessionExcluded(userEmail)) {
+      try {
+        await deleteDoc(sessionDocRef);
+      } catch {}
+      return;
+    }
+
     try {
       await setDoc(sessionDocRef, {
         id: sessionId,
@@ -241,7 +303,7 @@ export function startActivePresence(onActiveCountChange: (count: number) => void
     }
   };
 
-  // Immediate heartbeat
+  // Immediate heartbeat (only if not excluded)
   sendHeartbeat();
   const intervalId = window.setInterval(sendHeartbeat, 25000);
 

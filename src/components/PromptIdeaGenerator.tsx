@@ -8,6 +8,7 @@ import { Sparkles, Dices, Copy, Check, Heart, Search, ArrowRight, ArrowLeft, Ref
 import { ModelType, AppLanguage } from '../types';
 import { showToast } from './ToastNotification';
 import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
+import { safeParseFetchResponse, safeParseGeminiJSON } from '../utils/geminiJsonParser';
 
 export interface PromptIdea {
   id: string;
@@ -362,14 +363,11 @@ export default function PromptIdeaGenerator({ lang, onSelectIdea, compact = fals
         })
       });
 
-      if (!response.ok) throw new Error('API failed');
+      const fetchResult = await safeParseFetchResponse<{ result?: string }>(response, lang);
+      const rawOutput = fetchResult.data?.result || '';
 
-      const data = await response.json();
-      const rawOutput = data.result || '';
-
-      // Clean JSON markers if present
-      const cleaned = rawOutput.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parseResult = safeParseGeminiJSON<any[]>(rawOutput, []);
+      const parsed = parseResult.data || [];
 
       if (Array.isArray(parsed) && parsed.length > 0) {
         const mapped: PromptIdea[] = parsed.map((item, idx) => ({

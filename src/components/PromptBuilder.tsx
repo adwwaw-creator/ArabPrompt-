@@ -281,14 +281,23 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
 
     const quota = checkGenerationQuota();
     if (!quota.allowed) {
-      setErrorMsg(
-        lang === 'ar'
-          ? `🛑 لقد استهلكت كامل حصتك اليومية من طلبات الـ API (${quota.max} طلباً). يرجى ترقية باقتك للاستمرار فوراً.`
-          : `🛑 You have exhausted your daily API quota (${quota.max} requests). Please upgrade to continue immediately.`
-      );
-      window.dispatchEvent(new CustomEvent('quota-threshold-reached', {
-        detail: { threshold: 100, used: quota.max, remaining: 0, max: quota.max, plan: quota.plan }
-      }));
+      if (quota.requiresSubscription) {
+        setErrorMsg(
+          lang === 'ar'
+            ? '🛑 المنصة مدفوعة بالكامل 100%. يرجى الاشتراك في إحدى الباقات الاحترافية (Lite أو Pro) لتوليد الأوامر الذكية.'
+            : '🛑 ArabPrompt is a 100% paid platform. Please subscribe to an active plan (Lite or Pro) to synthesize prompts.'
+        );
+        window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+      } else {
+        setErrorMsg(
+          lang === 'ar'
+            ? `🛑 لقد استهلكت كامل حصتك اليومية من طلبات الـ API (${quota.max} طلباً). يرجى ترقية باقتك للاستمرار فوراً.`
+            : `🛑 You have exhausted your daily API quota (${quota.max} requests). Please upgrade to continue immediately.`
+        );
+        window.dispatchEvent(new CustomEvent('quota-threshold-reached', {
+          detail: { threshold: 100, used: quota.max, remaining: 0, max: quota.max, plan: quota.plan }
+        }));
+      }
       return;
     }
 

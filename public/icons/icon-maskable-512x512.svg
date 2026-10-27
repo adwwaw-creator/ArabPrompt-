@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="maskableGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5e1a4"/>
+      <stop offset="35%" stop-color="#c29b40"/>
+      <stop offset="70%" stop-color="#e0b853"/>
+      <stop offset="100%" stop-color="#8a6920"/>
+    </linearGradient>
+  </defs>
+  <!-- Full Bleed Black Background -->
+  <rect width="512" height="512" fill="#000000"/>
+  <!-- Subtle circular accent in safe area -->
+  <circle cx="256" cy="256" r="190" fill="#0c0b09" stroke="#c29b40" stroke-width="4" opacity="0.4"/>
+  <!-- Central AP Monogram within 80% safe zone -->
+  <text x="256" y="310" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-size="190" 
+        font-weight="900" 
+        letter-spacing="4"
+        fill="url(#maskableGold)" 
+        text-anchor="middle">AP</text>
+  <!-- Small Star Sparkle -->
+  <path d="M 350 160 Q 350 180 370 180 Q 350 180 350 200 Q 350 180 330 180 Q 350 180 350 160 Z" fill="#f5e1a4" opacity="0.9"/>
+  <!-- Subtitle -->
+  <text x="256" y="375" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-size="24" 
+        font-weight="700" 
+        letter-spacing="6"
+        fill="#a8a29e" 
+        text-anchor="middle">STUDIO</text>
+</svg>

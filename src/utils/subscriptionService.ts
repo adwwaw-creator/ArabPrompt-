@@ -10,7 +10,7 @@ export type SubscriptionPlan = 'free' | 'lite' | 'pro' | 'studio';
 
 export interface UserSubscription {
   plan: SubscriptionPlan;
-  status: 'active' | 'cancelled' | 'trial';
+  status: 'active' | 'cancelled' | 'trial' | 'unpaid';
   billingCycle: 'monthly' | 'annual';
   startDate: string;
   renewalDate: string;
@@ -25,18 +25,17 @@ const STORAGE_KEY = 'arabi_prompt_user_subscription';
 
 export const PLAN_LIMITS = {
   free: {
-    nameAr: 'الباقة المجانية',
-    nameEn: 'Starter Free',
-    maxDailyPrompts: 25,
-    maxCinemaProjects: 2,
+    nameAr: 'غير مشترك (المنصة مدفوعة بالكامل)',
+    nameEn: 'Unsubscribed (Paid Only)',
+    maxDailyPrompts: 0,
+    maxCinemaProjects: 0,
     hasFaceAnchor: false,
     hasShareSequence: false,
     hasVideoReverser: false,
     hasExportPdf: false,
     hasApiAccess: false,
-    hasAds: true,
-    adRewardBonusPerView: 5,
-    maxAdRewardsPerDay: 20,
+    hasAds: false,
+    isPaidOnly: true,
     priceMonthly: 0,
     priceAnnual: 0,
   },
@@ -50,11 +49,13 @@ export const PLAN_LIMITS = {
     hasVideoReverser: true,
     hasExportPdf: true,
     hasApiAccess: false,
+    hasAds: false,
+    isPaidOnly: true,
     priceMonthly: 5,
     priceAnnual: 42, // ~ $3.50/mo ($42/yr)
   },
   pro: {
-    nameAr: 'باقة المحترف (Pro)',
+    nameAr: 'باقة المحترف (Pro Creator)',
     nameEn: 'Pro Creator',
     maxDailyPrompts: 9999, // unlimited
     maxCinemaProjects: 9999, // unlimited
@@ -63,11 +64,13 @@ export const PLAN_LIMITS = {
     hasVideoReverser: true,
     hasExportPdf: true,
     hasApiAccess: false,
+    hasAds: false,
+    isPaidOnly: true,
     priceMonthly: 9,
-    priceAnnual: 84, // $7/mo
+    priceAnnual: 84, // $7/mo ($84/yr)
   },
   studio: {
-    nameAr: 'باقة الاستوديو والشركات',
+    nameAr: 'باقة الاستوديو والشركات (Studio)',
     nameEn: 'Studio & Agency',
     maxDailyPrompts: 99999,
     maxCinemaProjects: 99999,
@@ -76,20 +79,34 @@ export const PLAN_LIMITS = {
     hasVideoReverser: true,
     hasExportPdf: true,
     hasApiAccess: true,
+    hasAds: false,
+    isPaidOnly: true,
     priceMonthly: 29,
-    priceAnnual: 288, // $24/mo
+    priceAnnual: 288, // $24/mo ($288/yr)
   }
 };
 
 const DEFAULT_SUBSCRIPTION: UserSubscription = {
   plan: 'free',
-  status: 'active',
+  status: 'unpaid',
   billingCycle: 'monthly',
   startDate: new Date().toISOString(),
-  renewalDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+  renewalDate: new Date().toISOString(),
   dailyUsageCount: 0,
   lastUsageDate: new Date().toISOString().split('T')[0]
 };
+
+/**
+ * Checks if the user is an active paid subscriber
+ */
+export function isPaidSubscriber(sub?: UserSubscription): boolean {
+  const current = sub || getSubscription();
+  return Boolean(
+    current &&
+    current.status === 'active' &&
+    (current.plan === 'lite' || current.plan === 'pro' || current.plan === 'studio')
+  );
+}
 
 /**
  * Retrieve active subscription from localStorage
@@ -114,7 +131,7 @@ export function getSubscription(): UserSubscription {
   }
 }
 
-function saveSubscriptionLocally(sub: UserSubscription): void {
+export function saveSubscriptionLocally(sub: UserSubscription): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sub));
     // Dispatch custom event to notify all components
@@ -146,7 +163,7 @@ export async function syncSubscriptionToFirestore(userId: string, sub: UserSubsc
 }
 
 /**
- * Upgrades or changes subscription
+ * Upgrades or activates a paid subscription
  */
 export async function upgradeSubscription(
   plan: SubscriptionPlan,
@@ -154,6 +171,7 @@ export async function upgradeSubscription(
   paymentMethod: string = 'card',
   userId?: string
 ): Promise<UserSubscription> {
+  const targetPlan = (plan === 'free' ? 'pro' : plan) as SubscriptionPlan;
   const now = new Date();
   const renewal = new Date();
   if (billingCycle === 'annual') {
@@ -165,7 +183,7 @@ export async function upgradeSubscription(
   const txId = 'TXN_' + Math.random().toString(36).substring(2, 9).toUpperCase() + Date.now().toString(36).toUpperCase();
 
   const updated: UserSubscription = {
-    plan,
+    plan: targetPlan,
     status: 'active',
     billingCycle,
     startDate: now.toISOString(),
@@ -188,13 +206,33 @@ export async function upgradeSubscription(
 /**
  * Check if the user is allowed to make a generation under current plan limits
  */
-export function checkGenerationQuota(): { allowed: boolean; remaining: number; max: number; plan: SubscriptionPlan } {
+export function checkGenerationQuota(): { 
+  allowed: boolean; 
+  remaining: number; 
+  max: number; 
+  plan: SubscriptionPlan;
+  isPaid: boolean;
+  requiresSubscription: boolean;
+} {
   const sub = getSubscription();
-  const limits = PLAN_LIMITS[sub.plan];
+  const paid = isPaidSubscriber(sub);
+
+  if (!paid) {
+    return {
+      allowed: false,
+      remaining: 0,
+      max: 0,
+      plan: sub.plan,
+      isPaid: false,
+      requiresSubscription: true
+    };
+  }
+
+  const limits = PLAN_LIMITS[sub.plan] || PLAN_LIMITS.pro;
   const max = limits.maxDailyPrompts;
   
   if (max >= 9999) {
-    return { allowed: true, remaining: 9999, max, plan: sub.plan };
+    return { allowed: true, remaining: 9999, max, plan: sub.plan, isPaid: true, requiresSubscription: false };
   }
 
   const remaining = Math.max(0, max - sub.dailyUsageCount);
@@ -202,7 +240,9 @@ export function checkGenerationQuota(): { allowed: boolean; remaining: number; m
     allowed: remaining > 0,
     remaining,
     max,
-    plan: sub.plan
+    plan: sub.plan,
+    isPaid: true,
+    requiresSubscription: false
   };
 }
 
@@ -216,7 +256,7 @@ export function recordGenerationUsage(userId?: string): {
   max: number;
 } {
   const sub = getSubscription();
-  const limits = PLAN_LIMITS[sub.plan] || PLAN_LIMITS.free;
+  const limits = PLAN_LIMITS[sub.plan] || PLAN_LIMITS.pro;
   const max = limits.maxDailyPrompts;
   const prevCount = sub.dailyUsageCount;
   
@@ -298,8 +338,9 @@ export interface UsageStats {
   isUnlimited: boolean;
   isNearLimit: boolean;
   isLimitReached: boolean;
+  isPaid: boolean;
   timeUntilReset: string;
-  statusLevel: 'normal' | 'warning' | 'critical' | 'unlimited';
+  statusLevel: 'normal' | 'warning' | 'critical' | 'unlimited' | 'unpaid';
 }
 
 /**
@@ -317,53 +358,10 @@ export function getTimeUntilMidnightReset(): string {
 }
 
 /**
- * Grants bonus prompt quota (+5 requests) to free tier users when they view an AdSense ad
+ * Legacy ad reward function stub (kept for backwards-compatibility; zero ads on paid platform)
  */
 export function claimAdRewardBonus(userId?: string): { success: boolean; newRemaining: number; totalBonusToday: number } {
-  const sub = getSubscription();
-  const today = new Date().toISOString().split('T')[0];
-  if (sub.lastUsageDate !== today) {
-    sub.dailyUsageCount = 0;
-    sub.bonusPromptsToday = 0;
-    sub.lastUsageDate = today;
-  }
-  
-  const currentBonus = sub.bonusPromptsToday || 0;
-  const maxBonusAllowed = 20; // 4 rewarded ads per day x 5 prompts
-  if (currentBonus >= maxBonusAllowed) {
-    const limits = PLAN_LIMITS[sub.plan] || PLAN_LIMITS.free;
-    const max = limits.maxDailyPrompts + currentBonus;
-    return { 
-      success: false, 
-      newRemaining: Math.max(0, max - sub.dailyUsageCount), 
-      totalBonusToday: currentBonus 
-    };
-  }
-
-  // Grant 5 extra prompts
-  sub.bonusPromptsToday = currentBonus + 5;
-  saveSubscriptionLocally(sub);
-
-  if (userId) {
-    syncSubscriptionToFirestore(userId, sub).catch(() => {});
-  }
-
-  const limits = PLAN_LIMITS[sub.plan] || PLAN_LIMITS.free;
-  const max = limits.maxDailyPrompts + sub.bonusPromptsToday;
-  const remaining = Math.max(0, max - sub.dailyUsageCount);
-
-  // Dispatch custom event for UI updates
-  try {
-    window.dispatchEvent(new CustomEvent('ad-reward-claimed', {
-      detail: { bonusGranted: 5, totalBonusToday: sub.bonusPromptsToday, remaining }
-    }));
-  } catch {}
-
-  return {
-    success: true,
-    newRemaining: remaining,
-    totalBonusToday: sub.bonusPromptsToday
-  };
+  return { success: false, newRemaining: 0, totalBonusToday: 0 };
 }
 
 /**
@@ -371,10 +369,31 @@ export function claimAdRewardBonus(userId?: string): { success: boolean; newRema
  */
 export function getUsageStats(subParam?: UserSubscription): UsageStats {
   const sub = subParam || getSubscription();
+  const paid = isPaidSubscriber(sub);
   const limits = PLAN_LIMITS[sub.plan] || PLAN_LIMITS.free;
+
+  if (!paid) {
+    return {
+      plan: sub.plan,
+      planNameAr: 'غير مشترك (المنصة مدفوعة بالكامل)',
+      planNameEn: 'Unsubscribed (Paid Only)',
+      dailyUsageCount: 0,
+      maxDailyPrompts: 0,
+      bonusPromptsToday: 0,
+      remainingRequests: 0,
+      percentUsed: 100,
+      percentRemaining: 0,
+      isUnlimited: false,
+      isNearLimit: false,
+      isLimitReached: true,
+      isPaid: false,
+      timeUntilReset: getTimeUntilMidnightReset(),
+      statusLevel: 'unpaid'
+    };
+  }
+
   const isUnlimited = limits.maxDailyPrompts >= 9999;
-  const bonus = sub.bonusPromptsToday || 0;
-  const max = isUnlimited ? limits.maxDailyPrompts : (limits.maxDailyPrompts + bonus);
+  const max = limits.maxDailyPrompts;
   const used = sub.dailyUsageCount;
   const remaining = isUnlimited ? 9999 : Math.max(0, max - used);
   const percentUsed = isUnlimited ? 0 : Math.min(100, Math.round((used / max) * 100));
@@ -382,7 +401,7 @@ export function getUsageStats(subParam?: UserSubscription): UsageStats {
   const isLimitReached = !isUnlimited && remaining <= 0;
   const isNearLimit = !isUnlimited && !isLimitReached && (percentUsed >= 80 || remaining <= 5);
 
-  let statusLevel: 'normal' | 'warning' | 'critical' | 'unlimited' = 'normal';
+  let statusLevel: 'normal' | 'warning' | 'critical' | 'unlimited' | 'unpaid' = 'normal';
   if (isUnlimited) {
     statusLevel = 'unlimited';
   } else if (isLimitReached) {
@@ -397,13 +416,14 @@ export function getUsageStats(subParam?: UserSubscription): UsageStats {
     planNameEn: limits.nameEn,
     dailyUsageCount: used,
     maxDailyPrompts: max,
-    bonusPromptsToday: bonus,
+    bonusPromptsToday: 0,
     remainingRequests: remaining,
     percentUsed,
     percentRemaining,
     isUnlimited,
     isNearLimit,
     isLimitReached,
+    isPaid: true,
     timeUntilReset: getTimeUntilMidnightReset(),
     statusLevel
   };

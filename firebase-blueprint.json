@@ -76,6 +76,15 @@
           "type": "string",
           "format": "date-time",
           "description": "Next renewal or expiration timestamp"
+        },
+        "backupNotificationEmailEnabled": {
+          "type": "boolean",
+          "description": "Whether user receives email receipts on successful cloud backups"
+        },
+        "lastBackupEmailSent": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the last backup security confirmation email was sent"
         }
       },
       "required": ["uid", "email"]
@@ -330,6 +339,22 @@
         }
       },
       "required": ["id", "title", "scenes", "createdAt"]
+    },
+    "subscription_requests": {
+      "title": "Subscription Requests",
+      "description": "User submitted payment verification proofs (e.g. Binance Pay transaction ID) pending admin approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "plan": { "type": "string" },
+        "billingCycle": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "plan", "billingCycle", "paymentMethod", "transactionId", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -352,6 +377,10 @@
     "users/{userId}/movie_projects/{movieId}": {
       "schema": "movie_projects",
       "description": "User specific Cinema Movie Projects with 10s screenplay and character face anchors"
+    },
+    "users/{userId}/subscription_requests/{reqId}": {
+      "schema": "subscription_requests",
+      "description": "User submitted payment verification proofs (e.g. Binance Pay transaction ID) pending admin approval"
     },
     "shared_sequences/{shareId}": {
       "schema": "shared_sequences",

@@ -106,8 +106,8 @@ export interface TranslationDictionary {
 export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
   ar: {
     appTitle: 'ArabPrompt',
-    appBadge: 'عربي',
-    appTagline: 'هندسة وصياغة التعليمات البرمجية والأوامر الذكية',
+    appBadge: '💎 مدفوع بالكامل',
+    appTagline: 'المنصة الاحترافية المدفوعة بالكامل لهندسة وصياغة الأوامر الذكية',
     navBuilder: 'مُهندس الأوامر',
     navCinema: 'أفلام وسيناريو AI',
     navVisualLibrary: 'مكتبة الصور الفنية (36)',
@@ -197,8 +197,8 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
 
   en: {
     appTitle: 'ArabPrompt',
-    appBadge: 'PRO',
-    appTagline: 'Advanced AI Prompt Engineering & Synthesis Core',
+    appBadge: '💎 100% PAID',
+    appTagline: '100% Paid Platform for Advanced AI Prompt Engineering & Cinema',
     navBuilder: 'Prompt Builder',
     navCinema: 'Cinema Studio',
     navVisualLibrary: 'Visual Art Library',

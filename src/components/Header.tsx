@@ -455,7 +455,9 @@ export default function Header({
                 )}
               </div>
               <span className="font-mono font-black text-[11px]">
-                {usageStats.isUnlimited ? (
+                {usageStats.statusLevel === 'unpaid' ? (
+                  lang === 'ar' ? '0 طلب (يلزم اشتراك)' : '0 reqs (Paid plan)'
+                ) : usageStats.isUnlimited ? (
                   lang === 'ar' ? 'طلبات ∞' : '∞ reqs'
                 ) : (
                   `${usageStats.remainingRequests}/${usageStats.maxDailyPrompts} ${lang === 'ar' ? 'طلب' : 'left'}`
@@ -482,12 +484,12 @@ export default function Header({
             ) : (
               <button
                 id="header-upgrade-btn"
-                onClick={() => onOpenCheckout ? onOpenCheckout('lite') : null}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 text-white font-black text-xs shadow-3xs hover:opacity-95 transition-all cursor-pointer"
-                title={lang === 'ar' ? 'الترقية إلى باقة مميزة' : 'Upgrade Plan'}
+                onClick={() => onOpenCheckout ? onOpenCheckout('pro') : null}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:from-[#7e5c1d] hover:to-amber-600 text-white font-black text-xs shadow-md shadow-[#c29b40]/20 hover:opacity-95 transition-all cursor-pointer ring-1 ring-amber-400/40 animate-pulse"
+                title={lang === 'ar' ? 'اشترك الآن للوصول الكامل' : 'Subscribe Now for Full Access'}
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{lang === 'ar' ? 'ترقية الباقة' : 'Upgrade'}</span>
+                <Crown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{lang === 'ar' ? 'اشترك الآن' : 'Subscribe'}</span>
               </button>
             )}
 

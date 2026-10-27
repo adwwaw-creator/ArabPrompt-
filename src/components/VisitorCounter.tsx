@@ -52,7 +52,7 @@ import {
 import { showToast } from './ToastNotification';
 import { AppLanguage } from '../types';
 
-const ADMIN_EMAILS = ['adwwaw@gmail.com'];
+const ADMIN_EMAILS = ['adwwaw@gmail.com', 'adouaourachid@gmail.com'];
 const ADMIN_SECRET_CODE = '2026';
 
 interface VisitorCounterProps {
@@ -103,12 +103,21 @@ export default function VisitorCounter({
   const isAuthorized = isOwnerByEmail || isUnlockedLocally;
 
   useEffect(() => {
-    // 1. Record genuine visitor entry in background (always tracks silently for every visitor)
-    trackRealVisitor().then((num) => {
-      if (num !== null) {
-        setState((prev) => ({ ...prev, myVisitorNumber: num }));
-      }
-    });
+    // 1. If user is owner/admin, strictly bypass tracking so their entry is NEVER counted as a visitor number
+    if (isOwnerByEmail) {
+      try {
+        localStorage.removeItem('arabprompt_my_visitor_num');
+        sessionStorage.removeItem('arabprompt_session_counted');
+      } catch {}
+      setState((prev) => ({ ...prev, myVisitorNumber: null }));
+    } else {
+      // Record genuine visitor entry for general public only
+      trackRealVisitor(false, currentUser?.email).then((num) => {
+        if (num !== null) {
+          setState((prev) => ({ ...prev, myVisitorNumber: num }));
+        }
+      });
+    }
 
     // 2. Real-time Firestore snapshot listener for total count & logs
     const unsubscribeData = subscribeToVisitorData((data) => {
@@ -118,16 +127,16 @@ export default function VisitorCounter({
       }));
     });
 
-    // 3. Real-time active presence listener for "الداخلين حالياً للموقع"
+    // 3. Real-time active presence listener for "الداخلين حالياً للموقع" (admin presence bypassed from inflating count)
     const stopActivePresence = startActivePresence((count) => {
       setActiveUsers(count);
-    });
+    }, currentUser?.email);
 
     return () => {
       unsubscribeData();
       stopActivePresence();
     };
-  }, []);
+  }, [currentUser?.email]);
 
   const formatCount = (num: number): string => {
     return String(num ?? 0);
@@ -396,7 +405,7 @@ export default function VisitorCounter({
                         setInputAdminKey(e.target.value);
                         setUnlockError(null);
                       }}
-                      placeholder="adwwaw@gmail.com"
+                      placeholder="adwwaw@gmail.com / adouaourachid@gmail.com"
                       className="w-full text-xs rounded-xl border border-stone-300 dark:border-stone-700 py-2.5 px-9 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-[#c29b40]"
                     />
                   </div>
@@ -491,7 +500,7 @@ export default function VisitorCounter({
 
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-stone-400 font-mono hidden sm:inline">
-            adwwaw@gmail.com
+            Admin: adwwaw & adouaourachid
           </span>
           <button
             type="button"
@@ -538,11 +547,16 @@ export default function VisitorCounter({
                 {lang === 'ar' ? 'زائر للموقع' : 'visitors'}
               </span>
 
-              {state.myVisitorNumber && (
+              {isOwnerByEmail ? (
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-lg border border-emerald-500/30 hidden sm:inline-flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{lang === 'ar' ? 'المشرف (دخولك غير محسوب في العداد)' : 'Admin (Your visits not counted)'}</span>
+                </span>
+              ) : state.myVisitorNumber ? (
                 <span className="text-[11px] font-bold text-[#916a24] dark:text-amber-300 bg-[#c29b40]/15 px-2.5 py-0.5 rounded-lg border border-[#c29b40]/30 hidden sm:inline-flex">
                   {lang === 'ar' ? `أنت الزائر رقم #${state.myVisitorNumber}` : `You are Visitor #${state.myVisitorNumber}`}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

@@ -626,7 +626,7 @@ export default function CheckoutModal({
               )}
 
               {paymentMethod === 'promo' && (
-                <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/60 dark:bg-stone-900/40 space-y-2">
+                <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/60 dark:bg-stone-900/40 space-y-2.5">
                   <span className="text-xs font-bold text-stone-700 dark:text-stone-300 block">
                     {isAr ? 'أدخل كود الخصم أو قسيمة الترقية:' : 'Enter promo or gift code:'}
                   </span>
@@ -635,7 +635,7 @@ export default function CheckoutModal({
                       type="text"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value)}
-                      placeholder={isAr ? 'مثال: ARAB2026 أو VIP2026' : 'e.g. ARAB2026 or VIP2026'}
+                      placeholder={isAr ? 'مثال: VIP2026 أو PROMPTPRO' : 'e.g. VIP2026 or PROMPTPRO'}
                       className="flex-1 px-3 py-2 text-xs rounded-xl border border-stone-300/80 dark:border-stone-700 bg-white dark:bg-stone-800 uppercase tracking-wider font-bold focus:outline-none focus:border-[#c29b40]"
                     />
                     <button
@@ -645,6 +645,25 @@ export default function CheckoutModal({
                     >
                       {isAr ? 'تطبيق' : 'Apply'}
                     </button>
+                  </div>
+
+                  {/* VIP quick voucher pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
+                    <span className="text-stone-400 font-medium">{isAr ? 'أكواد متاحة للتجربة:' : 'Test VIP passes:'}</span>
+                    {['VIP2026', 'PROMPTPRO', 'ARAB2026', 'FULLACCESS'].map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => {
+                          setPromoCode(code);
+                          setPromoApplied(true);
+                          setPromoError('');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-[#916a24] dark:text-amber-300 font-mono font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
+                      >
+                        {code}
+                      </button>
+                    ))}
                   </div>
 
                   {promoApplied && (

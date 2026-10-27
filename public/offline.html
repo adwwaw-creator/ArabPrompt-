@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#000000">
+  <title>وضع عدم الاتصال | Arabiprompt AI Studio</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    body {
+      background-color: #0d0c0a;
+      color: #e5e5e5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: #181714;
+      border: 1px solid rgba(194, 155, 64, 0.25);
+      border-radius: 24px;
+      padding: 40px 28px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: #000000;
+      border: 2px solid #c29b40;
+      margin-bottom: 24px;
+      box-shadow: 0 0 24px rgba(194, 155, 64, 0.25);
+    }
+    .logo-badge span {
+      font-size: 32px;
+      font-weight: 900;
+      color: #c29b40;
+      letter-spacing: 1px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 12px;
+    }
+    p {
+      font-size: 14px;
+      color: #a8a29e;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .features-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed rgba(194, 155, 64, 0.2);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 28px;
+      text-align: right;
+    }
+    .features-box h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #c29b40;
+      margin-bottom: 8px;
+    }
+    .features-box ul {
+      list-style: none;
+      padding: 0;
+    }
+    .features-box li {
+      font-size: 12px;
+      color: #d6d3d1;
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .features-box li::before {
+      content: "✓";
+      color: #c29b40;
+      font-weight: bold;
+    }
+    .btn-retry {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #c29b40 0%, #916a24 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      padding: 12px 28px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+    .btn-retry:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-retry:active {
+      transform: translateY(1px);
+    }
+    .app-title {
+      font-size: 12px;
+      color: #78716c;
+      margin-top: 20px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-badge">
+      <span>AP</span>
+    </div>
+    <h1>أنت الآن في وضع عدم الاتصال</h1>
+    <p>يبدو أن الاتصال بشبكة الإنترنت غير متوفر حالياً. لا تقلق، تم حفظ بياناتك المحلية وواجهة Arabiprompt للعمل بدون إنترنت.</p>
+    
+    <div class="features-box">
+      <h2>ما يمكنك القيام به دون إنترنت:</h2>
+      <ul>
+        <li>استعراض وتعديل مسودات الأوامر المخزنة محلياً.</li>
+        <li>الاطلاع على قوالب وصيغ هندسة الأوامر الرقمية.</li>
+        <li>مراجعة سجل الأوامر المحفوظة على جهازك.</li>
+      </ul>
+    </div>
+
+    <button class="btn-retry" onclick="window.location.reload()">
+      <span>🔄 إعادة المحاولة والاتصال</span>
+    </button>
+
+    <div class="app-title">Arabiprompt AI Studio — Progressive Web App</div>
+  </div>
+</body>
+</html>

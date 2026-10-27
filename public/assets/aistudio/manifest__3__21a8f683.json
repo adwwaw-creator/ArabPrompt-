@@ -1,0 +1,100 @@
+{
+  "id": "/",
+  "name": "Arabiprompt AI Studio",
+  "short_name": "Arabiprompt",
+  "description": "منصتك الذكية لإنشاء الصور والفيديوهات بالذكاء الاصطناعي وهندسة الأوامر الرقمية",
+  "lang": "ar",
+  "dir": "auto",
+  "start_url": "Arabiprompt.ai.studio",
+  "scope": "Arabiprompt.ai.studio",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "categories": [
+    "beauty",
+    "books",
+    "books &amp; reference",
+    "business",
+    "cars",
+    "dating",
+    "design",
+    "developer",
+    "developer tools",
+    "development",
+    "education",
+    "entertainment",
+    "events",
+    "fashion",
+    "finance",
+    "fitness",
+    "food",
+    "fundraising",
+    "games",
+    "government",
+    "graphics",
+    "graphics &amp; design",
+    "health",
+    "health &amp; fitness",
+    "lifestyle",
+    "medical",
+    "multimedia",
+    "multimedia design",
+    "music",
+    "navigation",
+    "network",
+    "photo",
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Arabiprompt Mobile App"
+    },
+    {
+      "src": "/icons/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Arabiprompt Studio Workspace"
+    }
+  ],
+  "display_override": [
+    "browser",
+    "minimal-ui",
+    "fullscreen",
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "Arabiprompt.ai.studio",
+      "id": null
+    }
+  ]
+}

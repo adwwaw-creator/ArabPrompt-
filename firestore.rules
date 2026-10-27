@@ -60,7 +60,9 @@ service cloud.firestore {
              (!val.keys().hasAny(['billingCycle']) || (val.billingCycle is string && val.billingCycle.size() <= 32)) &&
              (!val.keys().hasAny(['renewalDate']) || (val.renewalDate is string && val.renewalDate.size() <= 64)) &&
              (!val.keys().hasAny(['dailyUsageCount']) || (val.dailyUsageCount is number)) &&
-             (!val.keys().hasAny(['lastUsageDate']) || (val.lastUsageDate is string && val.lastUsageDate.size() <= 64));
+             (!val.keys().hasAny(['lastUsageDate']) || (val.lastUsageDate is string && val.lastUsageDate.size() <= 64)) &&
+             (!val.keys().hasAny(['backupNotificationEmailEnabled']) || (val.backupNotificationEmailEnabled is bool)) &&
+             (!val.keys().hasAny(['lastBackupEmailSent']) || (val.lastBackupEmailSent is string && val.lastBackupEmailSent.size() <= 64));
     }
 
     function isValidHistory(val) {
@@ -100,15 +102,45 @@ service cloud.firestore {
       }
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email != null && (request.auth.token.email == 'adwwaw@gmail.com' || request.auth.token.email == 'adwwaw@GMAIL.COM');
+    }
+
+    function isValidSubscriptionRequest(val) {
+      return val.id is string && val.id.size() <= 128 &&
+             val.userId is string && val.userId == request.auth.uid &&
+             val.plan is string && val.plan in ['lite', 'pro', 'studio'] &&
+             val.billingCycle is string && val.billingCycle in ['monthly', 'annual'] &&
+             val.paymentMethod is string && val.paymentMethod.size() <= 64 &&
+             val.transactionId is string && val.transactionId.size() <= 256 &&
+             val.status is string && val.status in ['pending_verification', 'approved', 'rejected'] &&
+             val.createdAt is string && val.createdAt.size() <= 64;
+    }
+
     // Rules for Test Connection check
     match /test/{id} {
       allow read: if true;
     }
 
-    // Rules for User Profiles
+    // Rules for User Profiles (Protected against unauthorized self-upgrades)
     match /users/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
-      allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isEmailVerified() && isValidUser(incoming());
+      allow get: if (isSignedIn() && request.auth.uid == userId && isValidId(userId)) || isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isEmailVerified() && isValidUser(incoming()) &&
+                    (isAdmin() || !incoming().keys().hasAny(['plan']) || incoming().plan == 'free');
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isEmailVerified() && isValidUser(incoming()) &&
+                    (isAdmin() || 
+                     !incoming().keys().hasAny(['plan']) || 
+                     (existing().keys().hasAny(['plan']) && incoming().plan == existing().plan) ||
+                     (!existing().keys().hasAny(['plan']) && incoming().plan == 'free'));
+
+      // Users can submit subscription verification requests (e.g. Binance Pay TX ID)
+      match /subscription_requests/{reqId} {
+        allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId) && isValidId(reqId);
+        allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+        allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(reqId) &&
+                      isValidSubscriptionRequest(incoming()) && incoming().status == 'pending_verification';
+        allow update, delete: if isAdmin();
+      }
     }
 
     // Rules for User specific history subcollections
