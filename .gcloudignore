@@ -1,0 +1,9 @@
+.gcloudignore
+.git
+.github
+node_modules/
+.user_attachments/
+tmp_dawai/
+.aistudio/
+*.zip
+*.pdf

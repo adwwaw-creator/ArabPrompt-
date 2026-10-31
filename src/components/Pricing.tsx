@@ -95,6 +95,15 @@ export default function Pricing({ lang, onNavigateTab, onOpenAuth, onOpenCheckou
   // Local currency formatter helper
   const formatPrice = (usd: number) => formatCurrencyPrice(usd, currentCurrency.code, isAr);
 
+  // Directly route user to payment and checkout modal
+  const handleSelectPlan = (plan: SubscriptionPlan) => {
+    if (onOpenCheckout) {
+      onOpenCheckout(plan, billingCycle);
+    } else {
+      window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan, billingCycle } }));
+    }
+  };
+
   // Filtered currencies for search
   const filteredCurrencies = Object.values(SUPPORTED_CURRENCIES).filter((c) => {
     const query = currencySearchQuery.trim().toLowerCase();
@@ -405,7 +414,7 @@ export default function Pricing({ lang, onNavigateTab, onOpenAuth, onOpenCheckou
 
           <div className="pt-6">
             <button
-              onClick={() => onOpenCheckout ? onOpenCheckout('lite', billingCycle) : (onOpenAuth ? onOpenAuth('login') : null)}
+              onClick={() => handleSelectPlan('lite')}
               className="w-full py-2.5 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>
@@ -486,7 +495,7 @@ export default function Pricing({ lang, onNavigateTab, onOpenAuth, onOpenCheckou
 
           <div className="pt-6">
             <button
-              onClick={() => onOpenCheckout ? onOpenCheckout('pro', billingCycle) : (onOpenAuth ? onOpenAuth('login') : null)}
+              onClick={() => handleSelectPlan('pro')}
               className="w-full py-3 px-4 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:opacity-95 text-white shadow-lg shadow-[#c29b40]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>
@@ -558,7 +567,7 @@ export default function Pricing({ lang, onNavigateTab, onOpenAuth, onOpenCheckou
 
           <div className="pt-6">
             <button
-              onClick={() => onOpenCheckout ? onOpenCheckout('studio', billingCycle) : (onOpenAuth ? onOpenAuth('login') : null)}
+              onClick={() => handleSelectPlan('studio')}
               className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-white text-white dark:text-stone-950 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
             >
               <span>{isAr ? 'طلب باقة الاستوديو' : 'Get Studio & Agency'}</span>
@@ -880,7 +889,7 @@ export default function Pricing({ lang, onNavigateTab, onOpenAuth, onOpenCheckou
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 relative">
           <button
-            onClick={() => onOpenCheckout ? onOpenCheckout('pro', billingCycle) : (onOpenAuth ? onOpenAuth('login') : null)}
+            onClick={() => handleSelectPlan('pro')}
             className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-xs bg-[#c29b40] hover:bg-[#b08b34] text-stone-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer font-black"
           >
             <span>{isAr ? 'اشترك الآن في باقة Pro' : 'Subscribe to Pro Creator'}</span>

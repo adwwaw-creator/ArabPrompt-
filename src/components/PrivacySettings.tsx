@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Eye, Database, Info, Trash2, Download, CheckCircle, ShieldAlert, Lock, HelpCircle, HardDrive, RefreshCw, Calculator, DollarSign, Sparkles, BarChart3 } from 'lucide-react';
+import { Shield, Eye, Database, Info, Trash2, Download, CheckCircle, ShieldAlert, Lock, HelpCircle, HardDrive, RefreshCw, Calculator, DollarSign, Sparkles, BarChart3, Users } from 'lucide-react';
 import { PromptHistoryItem, AppLanguage } from '../types';
 import CostEstimator from './CostEstimator';
 import UserApiDashboardCharts from './UserApiDashboardCharts';
@@ -283,6 +283,17 @@ export default function PrivacySettings({ lang, history, onClearHistory, current
             <Shield className={`w-4 h-4 ${subTab === 'privacy' ? 'text-[#c29b40]' : 'text-white'}`} />
             <span>{lang === 'ar' ? '🛡️ إعدادات الخصوصية والبيانات (GDPR)' : '🛡️ Data Privacy & Consents (GDPR)'}</span>
           </button>
+
+          {onNavigateTab && (
+            <button
+              onClick={() => onNavigateTab('admin')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer bg-stone-900/60 hover:bg-stone-900/90 text-amber-300 border border-amber-400/40 ms-auto shadow-sm"
+              title={lang === 'ar' ? 'الانتقال للوحة تحكم المشرف' : 'Go to Admin Dashboard'}
+            >
+              <Users className="w-4 h-4 text-amber-400" />
+              <span>{lang === 'ar' ? '👑 لوحة تحكم المشرف (المستخدمون والباقات)' : '👑 Admin Dashboard'}</span>
+            </button>
+          )}
         </div>
       </div>
 

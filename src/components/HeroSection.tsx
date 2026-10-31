@@ -40,7 +40,7 @@ export default function HeroSection({ lang, onGetStarted }: HeroSectionProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-center">
             {onGetStarted && (
               <button
                 type="button"
@@ -51,6 +51,16 @@ export default function HeroSection({ lang, onGetStarted }: HeroSectionProps) {
                 <span>{isAr ? 'ابدأ الآن' : 'Get Started'}</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+              }}
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isAr ? 'اشترك الآن والدفع' : 'Subscribe & Pay'}</span>
+            </button>
           </div>
         </div>
 

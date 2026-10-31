@@ -6,6 +6,7 @@
 export type ModelType = 'gemini' | 'chatgpt' | 'claude' | 'midjourney' | 'notebooklm' | 'meta';
 
 export type AppLanguage = 'ar' | 'en' | 'fr' | 'es' | 'de' | 'tr' | 'ja' | 'zh';
+export type AppFontSize = 'small' | 'medium' | 'large';
 
 export interface LanguageOption {
   code: AppLanguage;
@@ -46,7 +47,8 @@ export interface PromptHistoryItem {
   tags?: string[];
 }
 
-export type ActiveTab = 'builder' | 'templates' | 'cinema' | 'visual_library' | 'ideas' | 'reverse' | 'sequence' | 'drone' | 'diffusiondb' | 'history' | 'privacy' | 'pricing';
+export type ActiveTab = 'dawai' | 'builder' | 'library' | 'templates' | 'cinema' | 'visual_library' | 'ideas' | 'reverse' | 'sequence' | 'drone' | 'diffusiondb' | 'history' | 'privacy' | 'pricing' | 'admin';
+export type TemplatePlaceholder = PromptTemplatePlaceholder;
 
 export interface Category {
   id: string;

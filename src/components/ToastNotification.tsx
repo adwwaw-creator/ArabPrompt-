@@ -38,11 +38,24 @@ export interface ToastMessage {
 }
 
 // Utility function to trigger a normal toast from anywhere without prop drilling
-export const showToast = (message: string, isError = false, action?: ToastAction) => {
-  const event = new CustomEvent('show-toast', {
-    detail: { message, isError, action }
-  });
-  window.dispatchEvent(event);
+export const showToast = (
+  messageOrConfig: string | { message: string; title?: string; type?: string; isError?: boolean; action?: ToastAction },
+  isError = false,
+  action?: ToastAction
+) => {
+  if (typeof messageOrConfig === 'string') {
+    const event = new CustomEvent('show-toast', {
+      detail: { message: messageOrConfig, isError, action }
+    });
+    window.dispatchEvent(event);
+  } else {
+    const isErr = messageOrConfig.isError ?? (messageOrConfig.type === 'error');
+    const msg = messageOrConfig.title ? `${messageOrConfig.title}: ${messageOrConfig.message}` : messageOrConfig.message;
+    const event = new CustomEvent('show-toast', {
+      detail: { message: msg, isError: isErr, action: messageOrConfig.action }
+    });
+    window.dispatchEvent(event);
+  }
 };
 
 // Utility function to explicitly trigger a quota warning toast

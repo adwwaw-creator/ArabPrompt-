@@ -2,14 +2,45 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  html {
+    font-size: 14.5px; /* Default balanced medium font size for Arabic Cairo typography */
+    overflow-x: hidden !important;
+    width: 100%;
+    max-width: 100vw;
+  }
+
+  html.font-size-small {
+    font-size: 13px !important;
+  }
+
+  html.font-size-medium {
+    font-size: 14.5px !important;
+  }
+
+  html.font-size-large {
+    font-size: 16px !important;
+  }
+
   body {
     font-family: 'Cairo', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.6;
     background-color: #fcfbfa;
     color: #1a1815;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     scrollbar-width: thin;
     scrollbar-color: #c29b38 rgba(0,0,0,0.05);
+    overflow-x: hidden !important;
+    width: 100%;
+    max-width: 100vw;
+    position: relative;
+  }
+
+  #root {
+    overflow-x: hidden !important;
+    width: 100%;
+    max-width: 100vw;
   }
 
   /* Custom selection matches sand luxury gold color */

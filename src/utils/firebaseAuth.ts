@@ -10,6 +10,8 @@ import {
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
+  GithubAuthProvider,
+  OAuthProvider,
   onAuthStateChanged,
   User,
   signInWithEmailAndPassword,
@@ -51,6 +53,20 @@ googleDriveProvider.addScope('https://www.googleapis.com/auth/drive.file');
 googleDriveProvider.setCustomParameters({
   prompt: 'select_account'
 });
+
+/**
+ * GitHub Provider for developer authentication
+ */
+const githubProvider = new GithubAuthProvider();
+githubProvider.addScope('read:user');
+githubProvider.addScope('user:email');
+
+/**
+ * Apple Provider for iOS / macOS / Apple ID authentication
+ */
+const appleProvider = new OAuthProvider('apple.com');
+appleProvider.addScope('email');
+appleProvider.addScope('name');
 
 export const isMobileDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -152,6 +168,80 @@ export const googleSignInRedirect = async (withDriveScope: boolean = false): Pro
 };
 
 /**
+ * GitHub Sign In via Popup
+ */
+export const githubSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(auth, githubProvider);
+    const credential = GithubAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      cachedAccessToken = await result.user.getIdToken();
+    } else {
+      cachedAccessToken = credential.accessToken;
+    }
+    return { user: result.user, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    console.error('GitHub sign in error:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+/**
+ * GitHub Sign In via Redirect
+ */
+export const githubSignInRedirect = async (): Promise<void> => {
+  try {
+    isSigningIn = true;
+    await signInWithRedirect(auth, githubProvider);
+  } catch (error: any) {
+    console.error('GitHub redirect error:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+/**
+ * Apple Sign In via Popup
+ */
+export const appleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(auth, appleProvider);
+    const credential = OAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      cachedAccessToken = await result.user.getIdToken();
+    } else {
+      cachedAccessToken = credential.accessToken;
+    }
+    return { user: result.user, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    console.error('Apple sign in error:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+/**
+ * Apple Sign In via Redirect
+ */
+export const appleSignInRedirect = async (): Promise<void> => {
+  try {
+    isSigningIn = true;
+    await signInWithRedirect(auth, appleProvider);
+  } catch (error: any) {
+    console.error('Apple redirect error:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+/**
  * Sign in with email and password
  */
 export const emailSignIn = async (email: string, password: string): Promise<User> => {
@@ -222,6 +312,19 @@ export const resendVerificationEmail = async (user: User): Promise<void> => {
   } catch (error: any) {
     console.error('Email verification send error:', error);
     throw error;
+  }
+};
+
+/**
+ * Reloads user profile from Firebase to refresh emailVerified status
+ */
+export const reloadAndCheckEmailVerified = async (user: User): Promise<boolean> => {
+  try {
+    await user.reload();
+    return Boolean(auth.currentUser?.emailVerified || user.emailVerified);
+  } catch (error: any) {
+    console.warn('Could not reload user:', error);
+    return Boolean(user.emailVerified);
   }
 };
 
@@ -317,6 +420,13 @@ export const getAuthErrorMessage = (error: any, lang: AppLanguage = 'ar'): AuthE
           ? 'تم إلغاء طلب تسجيل الدخول السابق. يمكنك إعادة المحاولة أو المتابعة بالتحويل المباشر.'
           : 'Previous sign-in request was cancelled. You can retry or use direct redirect.',
         isPopupError: true
+      };
+    case 'auth/account-exists-with-different-credential':
+      return {
+        title: lang === 'ar' ? 'البريد مسجل بمزود آخر' : 'Account Exists with Different Provider',
+        message: lang === 'ar'
+          ? 'هذا البريد الإلكتروني مسجل بالفعل باستخدام مزود دخول آخر (مثل Google أو البريد). يرجى تسجيل الدخول بالطريقة الأصلية.'
+          : 'An account already exists with this email using a different sign-in method. Please sign in using your original provider.'
       };
     default:
       return {

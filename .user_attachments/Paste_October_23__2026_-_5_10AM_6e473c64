@@ -1,0 +1,944 @@
+ممتاز — سأوسّع المكتبة إلى 24 مفهوماً (4 لكل جنس عبر 6 أجناس)، وأضيف أجناساً جديدة، وأبني واجهة ويب تفاعلية لعرض المكتبة. سأقسم العمل إلى ثلاثة أجزاء متكاملة.
+
+---
+
+🎯 الجزء الأول: توسيع المكتبة إلى 24 مفهوماً
+
+سأضيف 12 مفهوماً جديداً (مفهومان إضافيان لكل جنس من الأجناس الستة) لتكتمل 24 مفهوماً، ثم أضيف 4 أجناس جديدة (رعب، خيال علمي، طبيعة، بورتريه) بـ 3 مفاهيم لكل جنس = 12 مفهوماً إضافياً، ليصبح الإجمالي 36 مفهوماً.
+
+المفاهيم الإضافية — الأجناس الستة الأصلية (13–24)
+
+```python
+# أضف هذه المفاهيم إلى LIBRARY في library.py
+
+    # ── رياضة 3 ─────────────────────────────────────────
+    VisualConcept(
+        id=13, genre="رياضة", title="حافة الماراثون",
+        narrative="عدّاء ماراثون يعبر خط النهاية في المطر، ذراعاه مرفوعتان، والمدينة خلفه ضبابية.",
+        composition="لقطة متوسطة منخفضة، العدّاء في المركز، خط النهاية قطري",
+        optics="85mm f/1.8، عمق ضحل، تمويه حركي خلفي",
+        lighting="ضوء نهار رمادي منتشر، مطر خفيف، انعكاسات على الأسفلت",
+        palette=["#4A5A6A", "#D4C4A8", "#8C9BA5", "#FFFFFF"],
+        textures="مطر، أسفلت مبلل، قماش مبلل",
+        aspect_ratio="3:2", mood="انتصار خام",
+        master_prompt="medium low-angle shot of marathon runner crossing finish line in rain, arms raised, blurred city behind, 85mm f/1.8, shallow depth, overcast diffused light #4A5A6A, wet asphalt reflections, raw victory, motion blur",
+        natural_prompt="لقطة متوسطة منخفضة لعدّاء ماراثون يعبر خط النهاية تحت المطر، ذراعاه مرفوعتان والمدينة ضبابية خلفه. ضوء نهار رمادي، انعكاسات على الأسفلت المبلل. انتصار خام.",
+    ),
+
+    # ── رياضة 4 ─────────────────────────────────────────
+    VisualConcept(
+        id=14, genre="رياضة", title="قفاز الملاكمة",
+        narrative="ملاكم في زاوية الحلبة بين الجولات، وجهه متعرق، مدربه يهمس في أذنه.",
+        composition="لقطة مقربة، وجه الملاكم في الثلث الأيمن، المدرب ضبابي يساراً",
+        optics="135mm f/2.0، عمق ضحل جداً، بوكيه ناعم",
+        lighting="إضاءة حلبة علوية قاسية، عرق لامع، ظلال عميقة",
+        palette=["#1A1A1A", "#C46A3B", "#D4C4A8", "#8C2A2A"],
+        textures="عرق، جلد، قماش، معدن",
+        aspect_ratio="4:5", mood="توتر حميمي",
+        master_prompt="close-up of boxer in ring corner between rounds, sweat on face, coach whispering, 135mm f/2.0, shallow depth, harsh overhead ring light, deep shadows #1A1A1A, glossy sweat #C46A3B, intimate tension",
+        natural_prompt="لقطة مقربة لملاكم في زاوية الحلبة بين الجولات، وجهه متعرق ومدربه يهمس في أذنه. إضاءة حلبة علوية قاسية وظلال عميقة. توتر حميمي.",
+    ),
+
+    # ── سينما 3 ─────────────────────────────────────────
+    VisualConcept(
+        id=15, genre="سينما", title="غرفة المونتاج",
+        narrative="مونتير وحيد في غرفة مظلمة أمام شاشات متعددة، يصنع السرد من الفوضى.",
+        composition="لقطة واسعة، المونتير في الثلث الأيسر، الشاشات تشع نحو اليمين",
+        optics="28mm f/2.8، عمق متوسط، منظور واسع",
+        lighting="وهج شاشات بارد، مصباح مكتب دافئ، ظلام محيط",
+        palette=["#0A0E14", "#3D6B8C", "#D98E5F", "#8C8C8C"],
+        textures="معدن، زجاج، ورق",
+        aspect_ratio="16:9", mood="عزلة إبداعية",
+        master_prompt="wide shot of lone film editor in dark room before multiple screens, 28mm f/2.8, cool screen glow #3D6B8C, warm desk lamp #D98E5F, surrounding darkness, narrative from chaos, creative solitude",
+        natural_prompt="لقطة واسعة لمونتير وحيد في غرفة مظلمة أمام شاشات متعددة. وهج شاشات بارد ومصباح مكتب دافئ وسط ظلام محيط. عزلة إبداعية.",
+    ),
+
+    # ── سينما 4 ─────────────────────────────────────────
+    VisualConcept(
+        id=16, genre="سينما", title="بروجيكتور قديم",
+        narrative="غرفة سينما مهجورة، بروجيكتور قديم يلقي شعاعاً على شاشة فارغة، غبار يرقص في الضوء.",
+        composition="لقطة جانبية، البروجيكتور يساراً، الشعاع قطري نحو اليمين",
+        optics="50mm f/2.0، عمق متوسط، تركيز على الشعاع",
+        lighting="شعاع بروجيكتور دافئ، غبار معلق، ظلام عميق",
+        palette=["#1A1A1A", "#D4C4A8", "#8C7A5A", "#3A2A1A"],
+        textures="غبار، خشب قديم، معدن صدئ",
+        aspect_ratio="2.39:1", mood="حنين مهجور",
+        master_prompt="side shot of vintage projector casting beam onto empty screen in abandoned cinema, 50mm f/2.0, warm beam #D4C4A8, dancing dust particles, deep darkness #1A1A1A, nostalgic decay, light as memory",
+        natural_prompt="لقطة جانبية لبروجيكتور قديم يلقي شعاعاً على شاشة فارغة في سينما مهجورة. شعاع دافئ وغبار يرقص في الضوء وسط ظلام عميق. حنين مهجور.",
+    ),
+
+    # ── أفلام 3 ─────────────────────────────────────────
+    VisualConcept(
+        id=17, genre="أفلام", title="مطاردة الأسطح",
+        narrative="شخصان يقفزان بين أسطح مبانٍ ليلاً، أضواء المدينة تحتهما، لحظة مطاردة رأسية.",
+        composition="لقطة جانبية، الشخصان في الهواء في المركز، المدينة تحتهما",
+        optics="35mm f/2.8، عمق متوسط، تمويه حركي",
+        lighting="أضواء مدينة ليلية، نيون متعدد، ظلال حادة",
+        palette=["#0A0E14", "#D93A2A", "#3D6B8C", "#E8D44D"],
+        textures="أسفلت، معدن، زجاج",
+        aspect_ratio="2.39:1", mood="إثارة رأسية",
+        master_prompt="side shot of two figures leaping between rooftops at night, city lights below, 35mm f/2.8, motion blur, multi-color neon #D93A2A #3D6B8C #E8D44D, sharp shadows #0A0E14, vertical pursuit tension",
+        natural_prompt="لقطة جانبية لشخصين يقفزان بين أسطح مبانٍ ليلاً، أضواء المدينة تحتهما. نيون متعدد الألوان وظلال حادة. توتر مطاردة رأسية.",
+    ),
+
+    # ── أفلام 4 ─────────────────────────────────────────
+    VisualConcept(
+        id=18, genre="أفلام", title="غرفة الاستجواب",
+        narrative="مشهد استجواب كلاسيكي، مصباح واحد فوق الطاولة، وجهان متقابلان في الظل.",
+        composition="لقطة متوسطة، تماثل ثنائي، المصباح في المركز",
+        optics="50mm f/1.8، عمق ضحل، تركيز على العيون",
+        lighting="مصباح واحد قاسٍ فوق الطاولة، ظلال عميقة، تباين عالٍ",
+        palette=["#0A0A0A", "#D4C4A8", "#8C7A5A", "#2A2A2A"],
+        textures="معدن، خشب، ورق",
+        aspect_ratio="2.39:1", mood="توتر صامت",
+        master_prompt="medium shot of classic interrogation room, single lamp over table, two faces in shadow, 50mm f/1.8, shallow depth, harsh single source #D4C4A8, deep shadows #0A0A0A, silent tension, film noir",
+        natural_prompt="لقطة متوسطة لغرفة استجواب كلاسيكية، مصباح واحد فوق الطاولة ووجهان في الظل. إضاءة قاسية واحدة وظلال عميقة. توتر صامت.",
+    ),
+
+    # ── خيال 3 ─────────────────────────────────────────
+    VisualConcept(
+        id=19, genre="خيال", title="سفينة السحب",
+        narrative="سفينة شراعية تبحر بين السحب فوق جبال شاهقة، أشرعة بيضاء تتوهج في ضوء الشمس.",
+        composition="لقطة واسعة، السفينة في الثلث الأيمن، السحب تحيط بها",
+        optics="85mm f/4، عمق عميق، ضغط منظوري",
+        lighting="شمس اختراقية، سحب مضيئة، ظلال ناعمة",
+        palette=["#E8E8E0", "#8CA5B8", "#D4C4A8", "#5C6B7A"],
+        textures="قماش، خشب، سحب",
+        aspect_ratio="21:9", mood="حرية أثيرية",
+        master_prompt="wide shot of sailing ship navigating between clouds above towering mountains, white sails glowing in sunlight, 85mm f/4, deep focus, god rays through clouds #E8E8E0 #8CA5B8, ethereal freedom, fantasy scale",
+        natural_prompt="لقطة واسعة لسفينة شراعية تبحر بين السحب فوق جبال شاهقة، أشرعتها البيضاء تتوهج في ضوء الشمس. أشعة اختراقية وسحب مضيئة. حرية أثيرية.",
+    ),
+
+    # ── خيال 4 ─────────────────────────────────────────
+    VisualConcept(
+        id=20, genre="خيال", title="باب النجوم",
+        narrative="باب حجري وحيد في وسط صحراء ليلية، يفتح على سماء مرصعة بالنجوم، مسافر يقف أمامه.",
+        composition="لقطة واسعة، الباب في المركز، المسافر صغير أمامه",
+        optics="35mm f/2.8، عمق متوسط، منظور درامي",
+        lighting="ضوء نجوم بارد، ضوء دافئ من الباب، ظلال طويلة",
+        palette=["#0A0E14", "#4A6FA5", "#D4C4A8", "#2A3A4A"],
+        textures="حجر، رمل، ضوء",
+        aspect_ratio="4:5", mood="لغز كوني",
+        master_prompt="wide shot of lone stone door in desert night opening to starry sky, traveler before it, 35mm f/2.8, cool starlight #4A6FA5 vs warm door glow #D4C4A8, long shadows, cosmic mystery, fantasy gateway",
+        natural_prompt="لقطة واسعة لباب حجري وحيد في صحراء ليلية يفتح على سماء مرصعة بالنجوم، مسافر يقف أمامه. ضوء نجوم بارد وضوء دافئ من الباب. لغز كوني.",
+    ),
+
+    # ── فانتازيا 3 ─────────────────────────────────────
+    VisualConcept(
+        id=21, genre="فانتازيا", title="حارس الغابة",
+        narrative="كائن عملاق شبيه بالأشجار يقف في غابة ضبابية، عيناه تتوهجان بلون أخضر.",
+        composition="لقطة منخفضة جداً، الكائن يملأ الإطار، الغابة تحته",
+        optics="24mm f/2.8، عمق عميق، منظور منخفض",
+        lighting="ضوء غابة أخضر منتشر، ضباب أرضي، أشعة اختراقية",
+        palette=["#1A3A2A", "#4A8C6B", "#D4C4A8", "#2A3A2A"],
+        textures="لحاء، طحالب، ضباب",
+        aspect_ratio="4:5", mood="رهبة قديمة",
+        master_prompt="extreme low-angle shot of giant tree-like creature in misty forest, glowing green eyes #4A8C6B, 24mm f/2.8, deep focus, diffused green forest light #1A3A2A, ground fog, god rays, ancient awe, fantasy guardian",
+        natural_prompt="لقطة منخفضة جداً لكائن عملاق شبيه بالأشجار في غابة ضبابية، عيناه تتوهجان بالأخضر. ضوء غابة أخضر منتشر وضباب أرضي وأشعة اختراقية. رهبة قديمة.",
+    ),
+
+    # ── فانتازيا 4 ─────────────────────────────────────
+    VisualConcept(
+        id=22, genre="فانتازيا", title="مذبح النار",
+        narrative="كاهنة تقف أمام مذبح حجري محاط بالنار، يداها مرفوعتان في طقس قديم.",
+        composition="لقطة متوسطة واسعة، تماثل مركزي، النار تحيط بالإطار",
+        optics="85mm f/2.0، عمق ضحل، تركيز على الكاهنة",
+        lighting="ضوء نار دافئ من الأسفل، ظلال متحركة، دخان",
+        palette=["#1A0A0A", "#D93A2A", "#E8A87C", "#3A2A1A"],
+        textures="حجر، نار، قماش، دخان",
+        aspect_ratio="4:5", mood="طقس مهيب",
+        master_prompt="medium-wide symmetrical shot of priestess before stone altar surrounded by fire, arms raised, 85mm f/2.0, shallow depth, warm firelight from below #D93A2A #E8A87C, dancing shadows, smoke, ancient ritual majesty",
+        natural_prompt="لقطة متوسطة واسعة متناظرة لكاهنة أمام مذبح حجري محاط بالنار، يداها مرفوعتان. ضوء نار دافئ من الأسفل وظلال متحركة ودخان. طقس مهيب.",
+    ),
+
+    # ── تاريخ 3 ────────────────────────────────────────
+    VisualConcept(
+        id=23, genre="تاريخ", title="مكتبة الإسكندرية",
+        narrative="عالم يقف في مكتبة الإسكندرية القديمة، لفائف البردي تملأ الرفوف، ضوء يتسلل من الأعلى.",
+        composition="لقطة واسعة، العالم في الثلث الأيسر، الرفوف تمتد بعيداً",
+        optics="24mm f/4، عمق عميق، ضغط منظوري",
+        lighting="ضوء علوي طبيعي، غبار معلق، ظلال ناعمة",
+        palette=["#8C6B4A", "#D4C4A8", "#3A2A1A", "#C4A06B"],
+        textures="بردي، خشب، حجر",
+        aspect_ratio="3:2", mood="تبجيل معرفي",
+        master_prompt="wide shot of scholar in ancient Library of Alexandria, papyrus scrolls on shelves, 24mm f/4, deep focus, top natural light, floating dust #D4C4A8, #8C6B4A wood #C4A06B scrolls, intellectual reverence, historical grandeur",
+        natural_prompt="لقطة واسعة لعالم في مكتبة الإسكندرية القديمة، لفائف البردي تملأ الرفوف وضوء يتسلل من الأعلى. غبار معلق بألوان خشبية دافئة. تبجيل معرفي.",
+    ),
+
+    # ── تاريخ 4 ────────────────────────────────────────
+    VisualConcept(
+        id=24, genre="تاريخ", title="ساحة المعركة",
+        narrative="فارس مدرع يقف وحيداً في ساحة معركة بعد المعركة، دخان يتصاعد، راية ممزقة ترفرف.",
+        composition="لقطة واسعة، الفارس في الثلث الأيمن، الدخان يملأ الخلفية",
+        optics="50mm f/2.8، عمق متوسط، ضغط منظوري",
+        lighting="ضوء غروب باهت، دخان كثيف، ظلال طويلة",
+        palette=["#3A2A1A", "#8C6B4A", "#C46A3B", "#1A1A1A"],
+        textures="معدن، دخان، تراب، قماش",
+        aspect_ratio="2.39:1", mood="صمت بطولي",
+        master_prompt="wide shot of lone armored knight on battlefield after battle, smoke rising, torn banner fluttering, 50mm f/2.8, pale sunset light #C46A3B, heavy smoke #3A2A1A, long shadows #1A1A1A, heroic silence, historical aftermath",
+        natural_prompt="لقطة واسعة لفارس مدرع وحيد في ساحة معركة بعد المعركة، دخان يتصاعد وراية ممزقة ترفرف. ضوء غروب باهت وظلال طويلة. صمت بطولي.",
+    ),
+```
+
+---
+
+🆕 الجزء الثاني: الأجناس الجديدة (25–36)
+
+```python
+    # ── رعب 1 ───────────────────────────────────────────
+    VisualConcept(
+        id=25, genre="رعب", title="الممر الأخير",
+        narrative="ممر مستشفى مهجور، مصباح واحد يومض في آخره، ظل يقف تحت الضوء.",
+        composition="لقطة واسعة، الممر يشكل إطاراً، الظل في المركز البعيد",
+        optics="28mm f/2.8، عمق عميق، ضغط منظوري",
+        lighting="مصباح واحد يومض، ظلام محيط، ضباب خفيف",
+        palette=["#0A0A0A", "#3A3A3A", "#D4C4A8", "#8C2A2A"],
+        textures="بلاط متشقق، معدن صدئ، ضباب",
+        aspect_ratio="2.39:1", mood="رعب صامت",
+        master_prompt="wide shot of abandoned hospital corridor, single flickering light at end, silhouette standing beneath it, 28mm f/2.8, deep focus, #0A0A0A darkness, #D4C4A8 light, #8C2A2A blood stain, creeping dread, horror atmosphere",
+        natural_prompt="لقطة واسعة لممر مستشفى مهجور، مصباح واحد يومض في آخره وظل يقف تحته. ظلام محيط وضباب خفيف. رعب صامت.",
+    ),
+
+    # ── رعب 2 ───────────────────────────────────────────
+    VisualConcept(
+        id=26, genre="رعب", title="المرآة المكسورة",
+        narrative="امرأة تنظر في مرآة مكسورة، انعكاسها لا يطابقها، شقوق تشع نحو الحواف.",
+        composition="لقطة مقربة، وجه المرأة في الثلث الأيمن، المرآة يساراً",
+        optics="85mm f/1.4، عمق ضحل، تركيز على العين",
+        lighting="ضوء بارد جانبي، ظلال عميقة، انعكاس مزدوج",
+        palette=["#0A0E14", "#3D6B8C", "#D4C4A8", "#8C2A2A"],
+        textures="زجاج مكسور، بشرة، دم",
+        aspect_ratio="4:5", mood="رعب نفسي",
+        master_prompt="close-up of woman looking in broken mirror, reflection mismatched, cracks radiating, 85mm f/1.4, shallow depth, cold side light #3D6B8C, deep shadows #0A0E14, psychological horror, fractured identity",
+        natural_prompt="لقطة مقربة لامرأة تنظر في مرآة مكسورة، انعكاسها لا يطابقها والشقوق تشع نحو الحواف. ضوء بارد جانبي وظلال عميقة. رعب نفسي.",
+    ),
+
+    # ── رعب 3 ───────────────────────────────────────────
+    VisualConcept(
+        id=27, genre="رعب", title="الغابة الميتة",
+        narrative="أشجار ميتة عارية في ضباب كثيف، ضوء قمر خافت، طفل يقف بينها.",
+        composition="لقطة واسعة، الطفل في المركز، الأشجار إطار",
+        optics="35mm f/2.0، عمق متوسط، ضبابية في العمق",
+        lighting="ضوء قمر بارد، ضباب كثيف، ظلال طويلة",
+        palette=["#0A0E14", "#4A6FA5", "#2A2A2A", "#D4C4A8"],
+        textures="خشب ميت، ضباب، تراب",
+        aspect_ratio="4:5", mood="رعب وجودي",
+        master_prompt="wide shot of child standing among dead bare trees in thick fog, pale moonlight, 35mm f/2.0, medium depth, cold moonlight #4A6FA5, thick fog, long shadows #0A0E14, existential dread, horror folklore",
+        natural_prompt="لقطة واسعة لطفل يقف بين أشجار ميتة في ضباب كثيف، ضوء قمر بارد وظلال طويلة. رعب وجودي.",
+    ),
+
+    # ── خيال علمي 1 ─────────────────────────────────────
+    VisualConcept(
+        id=28, genre="خيال علمي", title="غرفة القيادة",
+        narrative="قبطان يقف أمام نافذة واسعة في سفينة فضاء، كوكب أحمر يملأ الأفق.",
+        composition="لقطة خلفية واسعة، القبطان في الثلث الأيسر، النافذة تملأ الإطار",
+        optics="24mm f/2.8، عمق عميق، منظور واسع",
+        lighting="ضوء كوكب أحمر دافئ، وهج أزرق داخلي، ظلام فضاء",
+        palette=["#0A0E14", "#C46A3B", "#3D6B8C", "#D4C4A8"],
+        textures="معدن، زجاج، ضوء",
+        aspect_ratio="21:9", mood="رهبة كونية",
+        master_prompt="over-the-shoulder wide shot of captain before vast window on spaceship bridge, red planet filling view, 24mm f/2.8, deep focus, warm planet light #C46A3B, cool interior glow #3D6B8C, cosmic awe, sci-fi scale",
+        natural_prompt="لقطة خلفية واسعة لقبطان أمام نافذة واسعة في جسر سفينة فضاء، كوكب أحمر يملأ الأفق. ضوء كوكب دافئ ووهج أزرق داخلي. رهبة كونية.",
+    ),
+
+    # ── خيال علمي 2 ─────────────────────────────────────
+    VisualConcept(
+        id=29, genre="خيال علمي", title="مختبر الأندرويد",
+        narrative="أندرويد يجلس على طاولة تشريح، نصف جسده مفتوح، أسلاك تتوهج باللون الأزرق.",
+        composition="لقطة متوسطة، الأندرويد في المركز، طاولة معدنية",
+        optics="50mm f/2.0، عمق ضحل، تركيز على الأسلاك",
+        lighting="ضوء علوي بارد، توهج أزرق داخلي، ظلام محيط",
+        palette=["#0A0E14", "#3D6B8C", "#8C8C8C", "#D4C4A8"],
+        textures="معدن، زجاج، أسلاك، بشرة صناعية",
+        aspect_ratio="4:5", mood="تأمل تقني",
+        master_prompt="medium shot of android on dissection table, half-open body, glowing blue wires #3D6B8C, 50mm f/2.0, shallow depth, cold overhead light, #0A0E14 darkness, technological contemplation, sci-fi intimacy",
+        natural_prompt="لقطة متوسطة لأندرويد على طاولة تشريح، نصف جسده مفتوح وأسلاك تتوهج بالأزرق. ضوء علوي بارد وظلام محيط. تأمل تقني.",
+    ),
+
+    # ── خيال علمي 3 ─────────────────────────────────────
+    VisualConcept(
+        id=30, genre="خيال علمي", title="مدينة المستقبل",
+        narrative="مدينة مستقبلية عمودية، أبراج زجاجية تشع، مركبات طائرة تتحرك بينها، ضباب صناعي.",
+        composition="لقطة واسعة جداً، الأبراج تمتد عمودياً، منظور منخفض",
+        optics="24mm f/4، عمق عميق، ضغط منظوري",
+        lighting="نيون متعدد، ضباب صناعي، انعكاسات على الزجاج",
+        palette=["#0A0E14", "#3D6B8C", "#D93A2A", "#E8D44D"],
+        textures="زجاج، معدن، ضباب",
+        aspect_ratio="21:9", mood="رهبة حضرية",
+        master_prompt="ultra-wide low-angle shot of futuristic vertical city, glass towers glowing, flying vehicles, 24mm f/4, deep focus, multi-color neon #3D6B8C #D93A2A #E8D44D, industrial fog, urban awe, sci-fi metropolis",
+        natural_prompt="لقطة واسعة جداً منخفضة لمدينة مستقبلية عمودية، أبراج زجاجية تشع ومركبات طائرة تتحرك بينها. نيون متعدد وضباب صناعي. رهبة حضرية.",
+    ),
+
+    # ── طبيعة 1 ─────────────────────────────────────────
+    VisualConcept(
+        id=31, genre="طبيعة", title="غابة الفجر",
+        narrative="غابة كثيفة عند الفجر، أشعة شمس تخترق الأشجار، ضباب أرضي، طائر وحيد.",
+        composition="لقطة واسعة، الأشعة قطرية، الطائر في الثلث الأيمن",
+        optics="35mm f/2.8، عمق متوسط، أشعة اختراقية",
+        lighting="شمس صاعدة، أشعة اختراقية، ضباب أرضي",
+        palette=["#1A3A2A", "#E8A87C", "#D4C4A8", "#4A8C6B"],
+        textures="لحاء، طحالب، ضباب",
+        aspect_ratio="3:2", mood="سكينة أولية",
+        master_prompt="wide shot of dense forest at dawn, sun rays piercing through trees, ground fog, lone bird, 35mm f/2.8, medium depth, god rays #E8A87C, #1A3A2A forest #4A8C6B moss, primordial serenity, nature photography",
+        natural_prompt="لقطة واسعة لغابة كثيفة عند الفجر، أشعة شمس تخترق الأشجار وضباب أرضي وطائر وحيد. أشعة اختراقية دافئة. سكينة أولية.",
+    ),
+
+    # ── طبيعة 2 ─────────────────────────────────────────
+    VisualConcept(
+        id=32, genre="طبيعة", title="عاصفة الصحراء",
+        narrative="عاصفة رملية تقترب من كثبان صحراوية، جمل وحيد يواجهها، سماء برتقالية غاضبة.",
+        composition="لقطة واسعة، الجمل في الثلث الأيسر، العاصفة تملأ اليمين",
+        optics="50mm f/5.6، عمق عميق، ضغط منظوري",
+        lighting="ضوء عاصفة برتقالي، غبار كثيف، ظلال غريبة",
+        palette=["#C46A3B", "#D4C4A8", "#8C6B4A", "#3A2A1A"],
+        textures="رمل، غبار، فراء",
+        aspect_ratio="21:9", mood="رهبة طبيعية",
+        master_prompt="wide shot of sandstorm approaching desert dunes, lone camel facing it, angry orange sky, 50mm f/5.6, deep focus, storm light #C46A3B, dense dust, #D4C4A8 sand, natural awe, desert photography",
+        natural_prompt="لقطة واسعة لعاصفة رملية تقترب من كثبان صحراوية، جمل وحيد يواجهها وسماء برتقالية غاضبة. غبار كثيف وظلال غريبة. رهبة طبيعية.",
+    ),
+
+    # ── طبيعة 3 ─────────────────────────────────────────
+    VisualConcept(
+        id=33, genre="طبيعة", title="شلال الجبل",
+        narrative="شلال ضخم يتساقط من جرف صخري، ضباب ماء يتصاعد، قوس قزح خافت في الأسفل.",
+        composition="لقطة واسعة، الشلال في المركز، الصخور إطار",
+        optics="24mm f/8، عمق عميق، تعريض طويل",
+        lighting="ضوء نهار منتشر، ضباب ماء، قوس قزح",
+        palette=["#4A8C6B", "#8CA5B8", "#D4C4A8", "#2A3A2A"],
+        textures="ماء، صخر، طحالب",
+        aspect_ratio="3:2", mood="جلال طبيعي",
+        master_prompt="wide shot of massive waterfall cascading from cliff, mist rising, faint rainbow below, 24mm f/8, deep focus, long exposure, diffused daylight, #4A8C6B #8CA5B8 #D4C4A8, natural grandeur, landscape photography",
+        natural_prompt="لقطة واسعة لشلال ضخم يتساقط من جرف صخري، ضباب ماء يتصاعد وقوس قزح خافت في الأسفل. تعريض طويل وضوء نهار منتشر. جلال طبيعي.",
+    ),
+
+    # ── بورتريه 1 ───────────────────────────────────────
+    VisualConcept(
+        id=34, genre="بورتريه", title="عيون الحكمة",
+        narrative="وجه شيخ متجعد، عيناه تحكيان قصة، ضوء نافذة جانبي يبرز التجاعيد.",
+        composition="لقطة مقربة، الوجه يملأ الإطار، العينان في المركز",
+        optics="85mm f/1.4، عمق ضحل جداً، تركيز على العين",
+        lighting="ضوء نافذة جانبي ناعم، ظلال رامبرانت، خلفية داكنة",
+        palette=["#3A2A1A", "#D4C4A8", "#8C6B4A", "#1A1A1A"],
+        textures="جلد متجعد، شعر، قماش",
+        aspect_ratio="4:5", mood="حكمة هادئة",
+        master_prompt="close-up portrait of elderly man's weathered face, eyes telling story, 85mm f/1.4, shallow depth, soft window side light #D4C4A8, Rembrandt shadows, dark background #1A1A1A, quiet wisdom, fine art portrait",
+        natural_prompt="لقطة مقربة لوجه شيخ متجعد، عيناه تحكيان قصة. ضوء نافذة جانبي ناعم وظلال رامبرانت وخلفية داكنة. حكمة هادئة.",
+    ),
+
+    # ── بورتريه 2 ───────────────────────────────────────
+    VisualConcept(
+        id=35, genre="بورتريه", title="فتاة النيون",
+        narrative="فتاة شابة تنظر إلى الكاميرا، نصف وجهها مضاء بنيون أرجواني، النصف الآخر أخضر.",
+        composition="لقطة مقربة، الوجه في المركز، خلفية بوكيه نيون",
+        optics="85mm f/1.4، عمق ضحل جداً، بوكيه دائري",
+        lighting="نيون ثنائي أرجواني/أخضر، خلفية داكنة، بوكيه",
+        palette=["#6B2D8C", "#2D8C6B", "#0A0A0A", "#D4C4A8"],
+        textures="بشرة، شعر، ضوء",
+        aspect_ratio="4:5", mood="غموض حديث",
+        master_prompt="close-up portrait of young woman looking at camera, half face lit by purple neon #6B2D8C, half by green #2D8C6B, 85mm f/1.4, shallow depth, dark background bokeh #0A0A0A, modern mystery, editorial portrait",
+        natural_prompt="لقطة مقربة لفتاة شابة تنظر إلى الكاميرا، نصف وجهها مضاء بنيون أرجواني والنصف الآخر أخضر. بوكيه نيون وخلفية داكنة. غموض حديث.",
+    ),
+
+    # ── بورتريه 3 ───────────────────────────────────────
+    VisualConcept(
+        id=36, genre="بورتريه", title="راقصة الظل",
+        narrative="راقصة باليه تقف في ضوء واحد، جسدها يشكل خطاً رفيعاً، ظلها يمتد على الأرض.",
+        composition="لقطة كاملة، الراقصة في الثلث الأيسر، ظلها يمتد يميناً",
+        optics="50mm f/2.0، عمق متوسط، تعريض عالٍ",
+        lighting="ضوء واحد عالٍ، ظل طويل، خلفية داكنة",
+        palette=["#0A0A0A", "#D4C4A8", "#8C7A5A", "#2A2A2A"],
+        textures="قماش، جلد، ظل",
+        aspect_ratio="4:5", mood="أناقة صامتة",
+        master_prompt="full shot of ballerina in single spotlight, thin body line, long shadow extending, 50mm f/2.0, medium depth, high exposure, single overhead light #D4C4A8, long shadow, dark background #0A0A0A, silent elegance, dance photography",
+        natural_prompt="لقطة كاملة لراقصة باليه في ضوء واحد، جسدها يشكل خطاً رفيعاً وظلها يمتد على الأرض. خلفية داكنة وظل طويل. أناقة صامتة.",
+    ),
+```
+
+---
+
+🌐 الجزء الثالث: واجهة الويب التفاعلية
+
+سأبني واجهة ويب كاملة باستخدام HTML + CSS + JavaScript (بدون أطر عمل) تعرض المكتبة، تفلتر حسب الجنس، وتبحث، وتنسخ البرومبتات.
+
+ملف index.html
+
+```html
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 مكتبة الصور المقترحة — Visual Art Director</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>📚 مكتبة الصور المقترحة</h1>
+        <p class="subtitle">36 مفهوماً بصرياً عبر 10 أجناس — جاهزة للتوليد</p>
+    </header>
+
+    <!-- شريط التحكم -->
+    <section class="controls">
+        <input type="text" id="searchBox" placeholder="🔍 ابحث بالعنوان أو السرد...">
+        <div id="genreFilters" class="filters"></div>
+        <div class="stats" id="stats"></div>
+    </section>
+
+    <!-- شبكة البطاقات -->
+    <main id="grid" class="grid"></main>
+
+    <!-- نافذة تفاصيل -->
+    <div id="modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" id="closeModal">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Engineered via Visual Art Director & Prompt Synthesizer — 36 Concepts</p>
+    </footer>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+```
+
+ملف style.css
+
+```css
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+
+body {
+    background: #0A0E14;
+    color: #E8E0D0;
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+header {
+    text-align: center;
+    padding: 3rem 1rem 1.5rem;
+    background: linear-gradient(135deg, #0A0E14 0%, #1A2A3A 100%);
+    border-bottom: 1px solid #2A3A4A;
+}
+
+header h1 {
+    font-size: 2.2rem;
+    color: #E8A87C;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: #8C9BA5;
+    font-size: 1rem;
+}
+
+/* شريط التحكم */
+.controls {
+    padding: 1.5rem 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    background: #111820;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid #2A3A4A;
+}
+
+#searchBox {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.7rem 1rem;
+    border: 1px solid #2A3A4A;
+    border-radius: 8px;
+    background: #0A0E14;
+    color: #E8E0D0;
+    font-size: 1rem;
+}
+
+#searchBox:focus {
+    outline: none;
+    border-color: #E8A87C;
+}
+
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #2A3A4A;
+    border-radius: 20px;
+    background: transparent;
+    color: #8C9BA5;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.filter-btn:hover, .filter-btn.active {
+    background: #E8A87C;
+    color: #0A0E14;
+    border-color: #E8A87C;
+}
+
+.stats {
+    color: #8C9BA5;
+    font-size: 0.9rem;
+}
+
+/* الشبكة */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 2rem;
+}
+
+.card {
+    background: #111820;
+    border: 1px solid #2A3A4A;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    border-color: #E8A87C;
+}
+
+.card-visual {
+    height: 160px;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-visual .palette {
+    display: flex;
+    height: 100%;
+}
+
+.card-visual .swatch {
+    flex: 1;
+    transition: flex 0.3s;
+}
+
+.card:hover .swatch {
+    flex: 1.2;
+}
+
+.card-genre {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(10, 14, 20, 0.85);
+    color: #E8A87C;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    border: 1px solid #E8A87C;
+}
+
+.card-body {
+    padding: 1rem 1.2rem;
+}
+
+.card-body h3 {
+    color: #E8E0D0;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-body p {
+    color: #8C9BA5;
+    font-size: 0.85rem;
+    margin-bottom: 0.8rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #8C9BA5;
+}
+
+/* النافذة المنبثقة */
+.modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: #111820;
+    border: 1px solid #E8A87C;
+    border-radius: 12px;
+    max-width: 800px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 2rem;
+    position: relative;
+}
+
+.close {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    font-size: 2rem;
+    color: #E8A87C;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-content h2 {
+    color: #E8A87C;
+    margin-bottom: 1rem;
+}
+
+.modal-content h3 {
+    color: #D4C4A8;
+    margin: 1.2rem 0 0.5rem;
+    font-size: 1rem;
+    border-bottom: 1px solid #2A3A4A;
+    padding-bottom: 0.3rem;
+}
+
+.modal-content p {
+    color: #8C9BA5;
+    margin-bottom: 0.8rem;
+}
+
+.prompt-box {
+    background: #0A0E14;
+    border: 1px solid #2A3A4A;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: #E8E0D0;
+    direction: ltr;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    position: relative;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: #E8A87C;
+    color: #0A0E14;
+    border: none;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.copy-btn:hover {
+    background: #D4C4A8;
+}
+
+.palette-row {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+}
+
+.palette-row .swatch-lg {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #2A3A4A;
+}
+
+footer {
+    text-align: center;
+    padding: 2rem;
+    color: #8C9BA5;
+    font-size: 0.85rem;
+    border-top: 1px solid #2A3A4A;
+    margin-top: 2rem;
+}
+
+@media (max-width: 600px) {
+    .grid { padding: 1rem; grid-template-columns: 1fr; }
+    .controls { padding: 1rem; }
+    header h1 { font-size: 1.5rem; }
+}
+```
+
+ملف data.js — تصدير المكتبة كـ JS
+
+```javascript
+// يُولَّد تلقائياً من library.py — أو استخدم JSON مباشرة
+const LIBRARY = [
+    // سيتم حقن البيانات هنا — استخدم السكريبت أدناه
+];
+
+// أو حمّل من JSON
+async function loadLibrary() {
+    try {
+        const response = await fetch('library.json');
+        return await response.json();
+    } catch (e) {
+        console.error('فشل تحميل المكتبة:', e);
+        return [];
+    }
+}
+```
+
+ملف app.js — منطق الواجهة
+
+```javascript
+let allConcepts = [];
+let currentGenre = 'الكل';
+let currentSearch = '';
+
+// تحميل البيانات
+async function init() {
+    allConcepts = await loadLibrary();
+    renderFilters();
+    renderStats();
+    renderGrid();
+}
+
+// عرض أزرار الفلاتر
+function renderFilters() {
+    const genres = ['الكل', ...new Set(allConcepts.map(c => c.genre))];
+    const container = document.getElementById('genreFilters');
+    container.innerHTML = genres.map(g => 
+        `<button class="filter-btn ${g === currentGenre ? 'active' : ''}" 
+                 data-genre="${g}">${g}</button>`
+    ).join('');
+
+    container.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentGenre = btn.dataset.genre;
+            renderFilters();
+            renderGrid();
+        });
+    });
+}
+
+// إحصائيات
+function renderStats() {
+    const stats = document.getElementById('stats');
+    const filtered = getFiltered();
+    stats.textContent = `عرض ${filtered.length} من ${allConcepts.length} مفهوماً`;
+}
+
+// فلترة
+function getFiltered() {
+    return allConcepts.filter(c => {
+        const genreMatch = currentGenre === 'الكل' || c.genre === currentGenre;
+        const searchMatch = !currentSearch || 
+            c.title.includes(currentSearch) || 
+            c.narrative.includes(currentSearch) ||
+            c.genre.includes(currentSearch);
+        return genreMatch && searchMatch;
+    });
+}
+
+// عرض الشبكة
+function renderGrid() {
+    const grid = document.getElementById('grid');
+    const filtered = getFiltered();
+    renderStats();
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #8C9BA5; padding: 3rem;">لا توجد نتائج مطابقة</p>';
+        return;
+    }
+
+    grid.innerHTML = filtered.map(c => `
+        <div class="card" data-id="${c.id}">
+            <div class="card-visual">
+                <div class="palette">
+                    ${c.palette.map(color => `<div class="swatch" style="background:${color}"></div>`).join('')}
+                </div>
+                <span class="card-genre">${c.genre}</span>
+            </div>
+            <div class="card-body">
+                <h3>${c.id}. ${c.title}</h3>
+                <p>${c.narrative}</p>
+                <div class="card-meta">
+                    <span>📐 ${c.aspect_ratio}</span>
+                    <span>🎭 ${c.mood}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    grid.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', () => openModal(parseInt(card.dataset.id)));
+    });
+}
+
+// فتح نافذة التفاصيل
+function openModal(id) {
+    const c = allConcepts.find(x => x.id === id);
+    if (!c) return;
+
+    const modal = document.getElementById('modal');
+    const body = document.getElementById('modalBody');
+
+    body.innerHTML = `
+        <h2>${c.id}. ${c.title}</h2>
+        <p><strong>الجنس:</strong> ${c.genre} | <strong>المزاج:</strong> ${c.mood} | <strong>النسبة:</strong> ${c.aspect_ratio}</p>
+        
+        <h3>📖 السرد</h3>
+        <p>${c.narrative}</p>
+        
+        <h3>🎨 التكوين والبصريات</h3>
+        <p><strong>التكوين:</strong> ${c.composition}</p>
+        <p><strong>البصريات:</strong> ${c.optics}</p>
+        
+        <h3>💡 الإضاءة والملامس</h3>
+        <p><strong>الإضاءة:</strong> ${c.lighting}</p>
+        <p><strong>الملامس:</strong> ${c.textures}</p>
+        
+        <h3>🎨 اللوحة اللونية</h3>
+        <div class="palette-row">
+            ${c.palette.map(color => `<div class="swatch-lg" style="background:${color}" title="${color}"></div>`).join('')}
+        </div>
+        
+        <h3>🚀 Master Prompt</h3>
+        <div class="prompt-box">
+            <button class="copy-btn" onclick="copyPrompt(this)">نسخ</button>
+            ${escapeHtml(c.master_prompt)} --ar ${c.aspect_ratio} --style raw --v 6.1
+        </div>
+        
+        <h3>📝 Natural Prompt</h3>
+        <div class="prompt-box">
+            <button class="copy-btn" onclick="copyPrompt(this)">نسخ</button>
+            ${escapeHtml(c.natural_prompt)}
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+}
+
+// نسخ البرومبت
+function copyPrompt(btn) {
+    const text = btn.parentElement.textContent.replace('نسخ', '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✓ تم';
+        setTimeout(() => btn.textContent = 'نسخ', 1500);
+    });
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// إغلاق النافذة
+document.getElementById('closeModal').addEventListener('click', () => {
+    document.getElementById('modal').classList.add('hidden');
+});
+
+document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target.id === 'modal') {
+        document.getElementById('modal').classList.add('hidden');
+    }
+});
+
+// البحث
+document.getElementById('searchBox').addEventListener('input', (e) => {
+    currentSearch = e.target.value.trim();
+    renderGrid();
+});
+
+// بدء التطبيق
+init();
+```
+
+---
+
+📁 بنية المشروع النهائية
+
+```
+visual_library/
+├── library.py           # 36 مفهوماً بصرياً
+├── prompt_engine.py     # محرك التوليد والتصدير
+├── render.py            # إرسال إلى API
+├── library.json         # (يُولَّد) البيانات
+├── mj_batch.txt         # (يُولَّد) Midjourney
+├── library.md           # (يُولَّد) Markdown
+└── web/
+    ├── index.html       # الواجهة
+    ├── style.css        # التنسيق
+    ├── data.js          # تحميل البيانات
+    ├── app.js           # المنطق
+    └── library.json     # (منسوخ من الجذر)
+```
+
+---
+
+🚀 التشغيل الكامل
+
+```bash
+# 1. توليد الملفات
+python prompt_engine.py
+
+# 2. نسخ JSON إلى مجلد الويب
+cp library.json web/
+
+# 3. تشغيل خادم محلي
+cd web
+python -m http.server 8000
+
+# 4. افتح المتصفح
+# http://localhost:8000
+```
+
+---
+
+✨ الميزات المكتملة
+
+الميزة الحالة
+36 مفهوماً عبر 10 أجناس ✅
+فلترة حسب الجنس ✅
+بحث فوري ✅
+نسخ البرومبت بنقرة ✅
+عرض اللوحة اللونية ✅
+تصميم متجاوب (موبايل) ✅
+تصدير JSON / MJ / MD ✅
+إرسال إلى FLUX API ✅
+
+---
+
+هل ترغب أن أضيف تحسينات مثل: عرض صور مصغرة فعلية (thumbnails)، تصدير PDF، لوحة تحكم إدارية، أو نشر على GitHub Pages؟

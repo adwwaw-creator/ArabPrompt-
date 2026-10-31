@@ -3,8 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Sparkles, Copy, Check, RefreshCw, Cpu, Globe, Sliders, AlertCircle, HelpCircle, Share2, Tag, Plus, X, Hash, Image as ImageIcon, LayoutTemplate } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { 
+  Sparkles, Copy, Check, RefreshCw, Cpu, Globe, Sliders, AlertCircle, HelpCircle, 
+  Share2, Tag, Plus, X, Hash, Image as ImageIcon, LayoutTemplate, Heart, Zap,
+  UploadCloud, ImagePlus, Layers, Camera, Palette, Eye, CheckCircle2, Trash2, ArrowDown,
+  Wand2, FileText, ListPlus, FileDown, CheckCheck, ChevronDown, ChevronUp, Send,
+  BookOpen, Crown
+} from 'lucide-react';
 import { ModelType, AppLanguage, SUPPORTED_LANGUAGES } from '../types';
 import { getTranslation } from '../utils/translations';
 import VariableHighlighterEditor from './VariableHighlighterEditor';
@@ -14,13 +20,34 @@ import { showToast } from './ToastNotification';
 import { appendSiteUrlToPrompt } from '../utils/brandWatermark';
 import AdSenseBanner from './AdSenseBanner';
 import AdSensePlaceholder from './AdSensePlaceholder';
+import WatchAdInterstitialModal from './WatchAdInterstitialModal';
 import { checkGenerationQuota } from '../utils/subscriptionService';
+
+export interface VisualReferenceAnalysis {
+  image: string;
+  mimeType: string;
+  visualDescriptionAr: string;
+  visualDescriptionEn: string;
+  styleSnippet: string;
+  attributes: {
+    medium: string;
+    lighting: string;
+    camera: string;
+    composition: string;
+    mood: string;
+    palette: string[];
+  };
+  promptSnippet: string;
+  fileName?: string;
+  isFallback?: boolean;
+}
 
 interface PromptBuilderProps {
   lang: AppLanguage;
   onSendToTester: (promptText: string) => void;
   onNavigateToReverse?: () => void;
   onNavigateToTemplates?: () => void;
+  onNavigateToLibrary?: () => void;
   onLogPrompt?: (item: {
     originalText: string;
     optimizedText: string;
@@ -30,6 +57,7 @@ interface PromptBuilderProps {
     actionType: 'generate' | 'refine' | 'translate' | 'reverse';
     isFallback?: boolean;
     tags?: string[];
+    styleImage?: string | null;
   }) => void;
   initialValues?: {
     concept: string;
@@ -129,6 +157,150 @@ const detectCategoryFromText = (text: string): string | null => {
   return maxScore > 0 ? bestCategory : null;
 };
 
+const DOMAIN_ENGINEERING_RULES: Record<string, { nameAr: string; nameEn: string; rulesAr: string; rulesEn: string }> = {
+  visual: {
+    nameAr: 'تصميم صورة واقعية',
+    nameEn: 'Photorealistic Image Design',
+    rulesAr: 'إخراج وصف بصري دقيق: الموضوع، التكوين، زاوية الكاميرا، نوع العدسة والبعد البؤري، توزيع الإضاءة، الخامات، لوحة الألوان، الخلفية، ونسبة الأبعاد.',
+    rulesEn: 'Produce a meticulous visual description: subject, framing, camera angle, lens & focal length, lighting architecture, textures, color palette, background, and aspect ratio.',
+  },
+  tech: {
+    nameAr: 'البرمجة وهندسة البرمجيات والتطوير التقني',
+    nameEn: 'Software Engineering & Programming',
+    rulesAr: 'معمارية الكود النظيف، معالجة الأخطاء والحالات الحدية (Edge Cases)، التوثيق الداخلي، معايير الأمان، توافقية المكتبات، وتضمين اختبارات التحقق.',
+    rulesEn: 'Clean code architecture, robust edge-case validation, strict types, security hardening, modular structure, and automated unit test coverage.',
+  },
+  marketing: {
+    nameAr: 'التسويق والإعلانات وبناء الحملات',
+    nameEn: 'Marketing & High-Converting Campaigns',
+    rulesAr: 'التركيز على العنوان الجذاب، استهداف شخصية العميل المثالي، هيكل الإقناع النفسي (AIDA/PAS)، إبراز القيمة والفوائد قبل الميزات، ونداء لا يقاوم لاتخاذ الإجراء (CTA).',
+    rulesEn: 'Compelling hook headline, ideal customer persona alignment, psychological persuasion framework (AIDA/PAS), benefits over features, and clear high-conversion CTA.',
+  },
+  content: {
+    nameAr: 'كتابة المحتوى الإبداعي والسردي والتدوين',
+    nameEn: 'Creative Content & Narrative Prose',
+    rulesAr: 'البنية السردية المتماسكة، الأسلوب البلاغي السلس، الصياغة المشوقة الخالية من الحشو، دقة المفردات، والملاءمة الدقيقة لهوية المنصة والجمهور.',
+    rulesEn: 'Engaging narrative voice, rhythm and cadence, fluff-free prose, vocabulary precision, and platform audience resonance.',
+  },
+  education: {
+    nameAr: 'التعليم والتبسيط والبحث العلمي',
+    nameEn: 'Academic Research & Pedagogical Education',
+    rulesAr: 'تقنية فاينمان في التبسيط التدريجي، الاستشهاد بالأمثلة التوضيحية، الدقة المفاهيمية، المنهجية العلمية الرصينة، والتحقق التفاعلي من الاستيعاب.',
+    rulesEn: 'Feynman technique pedagogy, conceptual clarity, rigorous scientific scaffolding, concrete analogies, and comprehension checkpoints.',
+  },
+  productivity: {
+    nameAr: 'الإنتاجية وإدارة الأعمال والتخطيط الاستراتيجي',
+    nameEn: 'Business Productivity & Strategic Planning',
+    rulesAr: 'منهجيات التخطيط العملي (SMART/OKRs)، توزيع المسؤوليات، الجداول الزمنية الواقعية، إدارة المخاطر، ومؤشرات قياس الأداء القابلة للتطبيق فوراً.',
+    rulesEn: 'Actionable execution frameworks (SMART/OKRs), milestone mapping, risk mitigation, resource allocation, and practical KPIs.',
+  },
+};
+
+const TARGET_MODEL_LABELS: Record<string, { ar: string; en: string }> = {
+  gemini: { ar: 'عام — أي نموذج (أو Google Gemini 2.5)', en: 'Universal — Any Model (or Google Gemini 2.5)' },
+  chatgpt: { ar: 'OpenAI ChatGPT (GPT-4o) — الحوار والتفكير والتحليل', en: 'OpenAI ChatGPT (GPT-4o)' },
+  claude: { ar: 'Anthropic Claude 3.5 Sonnet — المنطق والدقة الأكاديمية', en: 'Anthropic Claude 3.5 Sonnet' },
+  notebooklm: { ar: 'Google NotebookLM — تنظيم المصادر وتوليد النصوص', en: 'Google NotebookLM' },
+  midjourney: { ar: 'Midjourney v6.1 — التوليد الفوتوغرافي الفني', en: 'Midjourney v6.1' },
+  meta: { ar: 'Meta AI / Llama 3 — النماذج المفتوحة متعددة الوسائط', en: 'Meta AI / Llama 3' },
+};
+
+const TARGET_LANG_NAMES: Record<string, { ar: string; en: string }> = {
+  ar: { ar: 'اللغة العربية', en: 'Arabic' },
+  en: { ar: 'English', en: 'English' },
+  fr: { ar: 'Français', en: 'Français' },
+  es: { ar: 'Español', en: 'Español' },
+};
+
+const buildLocalFreeSynthesizedPrompt = (
+  rawIdea: string,
+  catKey: string,
+  modelKey: string,
+  targetLangKey: string,
+  toneKey: string,
+  appLang: AppLanguage | string,
+  visualDescription?: string
+): string => {
+  const domain = DOMAIN_ENGINEERING_RULES[catKey] || DOMAIN_ENGINEERING_RULES.visual;
+  const modelInfo = TARGET_MODEL_LABELS[modelKey] || { ar: 'عام — أي نموذج', en: 'Universal — Any Model' };
+  const targetLang = TARGET_LANG_NAMES[targetLangKey] || TARGET_LANG_NAMES.en;
+  
+  let finalIdea = rawIdea.trim();
+  if (visualDescription) {
+    finalIdea += `\n[محددات بصرية مرجعية مستخلصة]:\n${visualDescription}`;
+  }
+
+  if (appLang === 'ar') {
+    return `أنت كبير مهندسي الأوامر وخبير استشاري معتمد في توظيف الذكاء الاصطناعي التوليدي (${modelInfo.ar}).
+
+مهمتك المركبة والمزدوجة:
+أولاً: قم بتحويل الفكرة المرجعية أدناه إلى برومبت احترافي فائق الدقة، منسق طبقاً لأعلى المعايير الهندسية للمنصة المستهدفة.
+ثانياً: نفّذ الفكرة واعرض نتيجتها النهائية الملموسة والشاملة للمستخدم مباشرة.
+
+[بيانات الفكرة المرجعية — المدخل الأساسي]:
+"""
+${finalIdea}
+"""
+
+[المحددات والمعايير الفنية]:
+- المجال والتخصص: ${domain.nameAr}
+- المنصة والنموذج المستهدف: ${modelInfo.ar}
+- الجمهور المستهدف: جمهور أكاديمي ومهني متخصص مستنتج من الفكرة (${toneKey})
+- لغة البرومت النهائي: ${targetLang.ar}
+- مستوى التفصيل الهندسي: متوازن مع تفاصيل عملية
+
+[إرشادات التخصص لمجال ${domain.nameAr}]:
+${domain.rulesAr}
+
+[قواعد العمل والبروتوكول الصارم]:
+1. استخرج النواة الجوهرية والرسالة المقصودة من الفكرة الأصلية وحافظ على هويتها بالكامل.
+2. اكتب البرومت النهائي بأسلوب احترافي جاهز للنسخ المباشر، مستوفياً جميع متطلبات المنصة (${modelInfo.ar}).
+3. أضف تفاصيل بصرية/لغوية/هندسية تخدم الهدف، مع تجنب أي ادعاءات وهمية أو معاملات غير مدعومة.
+4. اكتب نص البرومبت النهائي بلغة ${targetLang.ar} بدقة فائقة.
+
+[المتطلبات والشروط الإضافية]:
+1. المرحلة التنفيذية: بعد صياغة وتوليد البرومت الاحترافي المكتمل، قم فوراً بتنفيذ وتطبيق الفكرة بكامل تفاصيلها وععرض النتيجة الشاملة مباشرة دون تأجيل.
+2. قدّم 3 نسخ مختلفة من البرومت النهائي، وميّز النسخة الأقوى مع بيان مبررات التميز.
+3. أضف قسماً صارماً للقيود والمحاذير السلبية (Negative Prompt) لتجنب العيوب والتشوهات.
+
+ابدأ الآن بإنتاج البرومت الهندسي المتكامل، ثم نفّذ الفكرة فوراً واعرض الناتج الشامل.`;
+  } else {
+    return `You are a Principal Prompt Engineer and generative AI authority for ${modelInfo.en}.
+
+Dual Objective Mandate:
+Step 1: Transform the reference concept below into a world-class, production-ready master prompt tailored precisely for ${modelInfo.en}.
+Step 2: Immediately execute the formulated prompt and deliver the complete final product to the user.
+
+[Reference Idea / Core Concept]:
+"""
+${finalIdea}
+"""
+
+[Technical Specifications]:
+- Domain / Specialization: ${domain.nameEn}
+- Target Platform / Model: ${modelInfo.en}
+- Target Audience: Specialized academic and professional audience (${toneKey})
+- Master Prompt Output Language: ${targetLang.en}
+- Engineering Detail Level: Balanced with practical actionable details
+
+[Specialization Guidelines for ${domain.nameEn}]:
+${domain.rulesEn}
+
+[Strict Protocols & Engineering Rules]:
+1. Extract and preserve the core intent, tone, and identity of the original concept.
+2. Engineer the prompt ready for direct copy-paste execution for ${modelInfo.en}.
+3. Inject domain-specific depth without hallucinations or unsupported parameters.
+4. Output the synthesized prompt in ${targetLang.en} with extreme accuracy.
+
+[Additional Execution Requirements]:
+1. Execution Stage: Immediately upon formulating the master prompt, execute the idea fully and output the complete deliverables.
+2. Provide 3 distinct prompt variations and highlight the optimal choice with clear rationale.
+3. Include an explicit Negative Prompt block to prevent defects and distortions.
+
+Begin now by engineering the complete master prompt, then execute the concept immediately and present the full deliverable.`;
+  }
+};
+
 const TONE_OPTIONS = [
   { value: 'مهني واحترافي', labelAr: 'مهني واحترافي', labelEn: 'Professional & Corporate' },
   { value: 'إبداعي وحر', labelAr: 'إبداعي وتخيلي', labelEn: 'Creative & Casual' },
@@ -137,7 +309,7 @@ const TONE_OPTIONS = [
   { value: 'صارم ومباشر', labelAr: 'تعليمات صارمة ومباشرة دون كلام فرعي', labelEn: 'Strict, minimal & concise' },
 ];
 
-function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateToTemplates, onLogPrompt, initialValues }: PromptBuilderProps) {
+function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateToTemplates, onNavigateToLibrary, onLogPrompt, initialValues }: PromptBuilderProps) {
   const t = getTranslation(lang);
   const [concept, setConcept] = useState(initialValues?.concept || '');
   const [model, setModel] = useState<ModelType>(initialValues?.model || 'gemini');
@@ -158,6 +330,7 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
   const [vGear, setVGear] = useState('shot on Leica M6 35mm, Kodak Portra 400');
   const [vPhotographer, setVPhotographer] = useState('Steve McCurry style');
   const [isShareAiModalOpen, setIsShareAiModalOpen] = useState(false);
+  const [isWatchAdModalOpen, setIsWatchAdModalOpen] = useState(false);
 
   React.useEffect(() => {
     if (!concept || concept.trim().length < 3) {
@@ -196,6 +369,37 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
   const [errorMsg, setErrorMsg] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
 
+  // Generation Engine Mode: 'free' (0 API local library synthesizer) vs 'paid' (Gemini Cloud Pro AI)
+  const [generationEngineMode, setGenerationEngineMode] = useState<'free' | 'paid'>('free');
+  const [lastGeneratedMode, setLastGeneratedMode] = useState<'free' | 'paid' | null>(null);
+
+  // Mode switcher: Single Prompt vs Bulk Generation
+  const [builderMode, setBuilderMode] = useState<'single' | 'bulk'>('single');
+
+  // Bulk Generation Mode states
+  const [bulkInput, setBulkInput] = useState('');
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkResults, setBulkResults] = useState<Array<{
+    id: string;
+    topic: string;
+    prompt: string;
+    status: 'pending' | 'generating' | 'completed' | 'error';
+    error?: string;
+  }>>([]);
+  const [bulkCopiedAll, setBulkCopiedAll] = useState(false);
+  const [bulkCopiedId, setBulkCopiedId] = useState<string | null>(null);
+  const [bulkExpandedId, setBulkExpandedId] = useState<string | null>(null);
+
+  // Parse comma-separated or newline-separated topics
+  const parsedBulkTopics = useMemo(() => {
+    if (!bulkInput.trim()) return [];
+    return bulkInput
+      .split(/[\n,،]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }, [bulkInput]);
+
   // Quick suggestions trigger
   const ideaPresets = [
     { ar: 'كتابة بريد اعتذار رسمي ومحترم لعميل غاضب بسب تأخر تسليم المشروع', en: 'Polite formal apology email to an angry client for project delays' },
@@ -211,6 +415,164 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [isSuggestingTags, setIsSuggestingTags] = useState(false);
   const [customTagInput, setCustomTagInput] = useState('');
+
+  // Visual Reference Drag & Drop & AI Vision Analysis states
+  const [visualRef, setVisualRef] = useState<VisualReferenceAnalysis | null>(null);
+  const [isAnalyzingVisualRef, setIsAnalyzingVisualRef] = useState(false);
+  const [isDragOverVisualRef, setIsDragOverVisualRef] = useState(false);
+  const [autoEmbedVisualDescription, setAutoEmbedVisualDescription] = useState(true);
+  const [visualRefError, setVisualRefError] = useState<string | null>(null);
+  const [copiedHexColor, setCopiedHexColor] = useState<string | null>(null);
+  const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
+  const visualFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const processVisualReferenceFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      const err = lang === 'ar' ? 'يرجى اختيار ملف صورة صالح (JPEG, PNG, WEBP)' : 'Please upload a valid image file (JPEG, PNG, WEBP)';
+      setVisualRefError(err);
+      showToast(err, true);
+      return;
+    }
+
+    setVisualRefError(null);
+    setIsAnalyzingVisualRef(true);
+
+    try {
+      // Read file as Data URL
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Compress/resize if larger than 1200px to ensure quick upload
+      const optimizedImage = await new Promise<string>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1200;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL(file.type || 'image/jpeg', 0.85));
+          } else {
+            resolve(dataUrl);
+          }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      });
+
+      const response = await fetch('/api/analyze-visual-reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: optimizedImage,
+          mimeType: file.type || 'image/jpeg',
+          targetPlatform: model
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze reference image');
+      }
+
+      const newRef: VisualReferenceAnalysis = {
+        image: optimizedImage,
+        mimeType: file.type || 'image/jpeg',
+        visualDescriptionAr: data.visualDescriptionAr || '',
+        visualDescriptionEn: data.visualDescriptionEn || '',
+        styleSnippet: data.styleSnippet || '',
+        attributes: data.attributes || {
+          medium: 'Cinematic Visual',
+          lighting: 'Ambient',
+          camera: 'Standard',
+          composition: 'Balanced',
+          mood: 'Atmospheric',
+          palette: ['#2D3748', '#C29B40']
+        },
+        promptSnippet: data.promptSnippet || data.visualDescriptionEn || '',
+        fileName: file.name,
+        isFallback: data.isFallback
+      };
+
+      setVisualRef(newRef);
+      setAutoEmbedVisualDescription(true);
+
+      // Auto-tune category if currently default content
+      if (category === 'content') {
+        setCategory('visual');
+        setModel('midjourney');
+      }
+
+      showToast(
+        lang === 'ar'
+          ? '✓ تم استخراج الوصف البصري بنجاح وجاهز للتضمين التلقائي!'
+          : '✓ Visual description extracted & ready for automatic embedding!',
+        false
+      );
+    } catch (err: any) {
+      console.error('Visual reference analysis error:', err);
+      const msg = lang === 'ar' ? 'تعذر تحليل الصورة المرجعية. يرجى المحاولة مرة أخرى.' : 'Failed to analyze reference image. Please try again.';
+      setVisualRefError(msg);
+      showToast(msg, true);
+    } finally {
+      setIsAnalyzingVisualRef(false);
+    }
+  }, [lang, category, model]);
+
+  const handleVisualRefDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverVisualRef(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processVisualReferenceFile(e.dataTransfer.files[0]);
+    }
+  }, [processVisualReferenceFile]);
+
+  const handleVisualRefDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverVisualRef(true);
+  }, []);
+
+  const handleVisualRefDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverVisualRef(false);
+  }, []);
+
+  const handleInsertVisualDescriptionIntoConcept = useCallback(() => {
+    if (!visualRef) return;
+    const textToInsert = lang === 'ar' 
+      ? `\n\n[الوصف البصري المستخرج من الصورة المرجعية]: ${visualRef.visualDescriptionAr}\n[الأسلوب البصري المحدد]: ${visualRef.styleSnippet}`
+      : `\n\n[Visual Description from Reference]: ${visualRef.visualDescriptionEn}\n[Style]: ${visualRef.styleSnippet}`;
+    
+    setConcept((prev) => prev.trim() ? `${prev.trim()}\n${textToInsert}` : textToInsert.trim());
+    showToast(lang === 'ar' ? '✓ تم إدراج الوصف البصري في حقل الفكرة!' : '✓ Inserted visual description into concept!', false);
+  }, [visualRef, lang]);
+
+  const handleCopyHexColor = (hex: string) => {
+    navigator.clipboard.writeText(hex);
+    setCopiedHexColor(hex);
+    showToast(lang === 'ar' ? `✓ تم نسخ كود اللون: ${hex}` : `✓ Copied color code: ${hex}`);
+    setTimeout(() => setCopiedHexColor(null), 2000);
+  };
 
   const fetchSuggestedTags = useCallback(async (textToAnalyze: string, targetCategory: string) => {
     if (!textToAnalyze || textToAnalyze.trim().length < 5) return;
@@ -267,32 +629,97 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
         category,
         actionType: 'refine',
         isFallback: false,
-        tags: selectedTags
+        tags: selectedTags,
+        styleImage: visualRef?.image || null
       });
       const successMsg = lang === 'ar' ? '✓ تم الحفظ بنجاح!' : '✓ Saved successfully!';
       setSaveNotification(successMsg);
       setTimeout(() => setSaveNotification(''), 3000);
     }
-  }, [currentResult, onLogPrompt, concept, lang, model, tone, category, selectedTags]);
+  }, [currentResult, onLogPrompt, concept, lang, model, tone, category, selectedTags, visualRef]);
 
   const handleGenerate = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!concept.trim()) return;
 
+    // ⚡ Free Mode Branch: 0 API, synthesized directly from local prompt library without quota check or Gemini call
+    if (generationEngineMode === 'free') {
+      setLoading(true);
+      setErrorMsg('');
+      setCurrentResult('');
+
+      try {
+        const visualDescPayload = (visualRef && autoEmbedVisualDescription)
+          ? `${visualRef.visualDescriptionEn}\nStyle Directive: ${visualRef.styleSnippet}`
+          : undefined;
+
+        // Brief pleasant tactile delay
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const synthesized = buildLocalFreeSynthesizedPrompt(
+          concept,
+          category,
+          model,
+          language,
+          tone,
+          lang,
+          visualDescPayload
+        );
+        const formattedPrompt = appendSiteUrlToPrompt(synthesized);
+        setCurrentResult(formattedPrompt);
+        setLastGeneratedMode('free');
+
+        // Auto-scroll on smaller viewports
+        setTimeout(() => {
+          const outputEl = document.querySelector('.xl\\:col-span-5');
+          if (outputEl && window.innerWidth < 1280) {
+            outputEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+
+        showToast(
+          lang === 'ar'
+            ? '✓ تم التوليد بنجاح محلياً وبشكل مجاني 100% من مكتبة الموقع (0 API وبلا استهلاك رصيد)!'
+            : '✓ Prompt synthesized instantly from local library (Free 0 API)!',
+          false
+        );
+
+        if (onLogPrompt) {
+          onLogPrompt({
+            originalText: concept,
+            optimizedText: formattedPrompt,
+            model,
+            tone,
+            category,
+            actionType: 'generate',
+            isFallback: false,
+            tags: selectedTags,
+            styleImage: visualRef?.image || null
+          });
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || 'حدث خطأ أثناء التوليد المحلي.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // 💎 Paid Mode Branch: Checks subscription quota and calls Gemini cloud API
     const quota = checkGenerationQuota();
     if (!quota.allowed) {
       if (quota.requiresSubscription) {
         setErrorMsg(
           lang === 'ar'
-            ? '🛑 المنصة مدفوعة بالكامل 100%. يرجى الاشتراك في إحدى الباقات الاحترافية (Lite أو Pro) لتوليد الأوامر الذكية.'
-            : '🛑 ArabPrompt is a 100% paid platform. Please subscribe to an active plan (Lite or Pro) to synthesize prompts.'
+            ? '🛑 النمط المدفوع يتطلب اشتراكاً نشطاً في إحدى الباقات. يمكنك التبديل للنمط "المجاني 0 API" في الأعلى للتوليد الفوري بلا مقابل، أو الترقية للمتابعة السحابية.'
+            : '🛑 Paid mode requires an active subscription. You can switch to "Free Mode (0 API)" above to generate instantly for free, or upgrade.'
         );
         window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
       } else {
         setErrorMsg(
           lang === 'ar'
-            ? `🛑 لقد استهلكت كامل حصتك اليومية من طلبات الـ API (${quota.max} طلباً). يرجى ترقية باقتك للاستمرار فوراً.`
-            : `🛑 You have exhausted your daily API quota (${quota.max} requests). Please upgrade to continue immediately.`
+            ? `🛑 لقد استهلكت كامل حصتك اليومية من طلبات الـ API (${quota.max} طلباً). يرجى ترقية باقتك للاستمرار أو التبديل للنمط المجاني.`
+            : `🛑 You have exhausted your daily API quota (${quota.max} requests). Please upgrade or use Free Mode.`
         );
         window.dispatchEvent(new CustomEvent('quota-threshold-reached', {
           detail: { threshold: 100, used: quota.max, remaining: 0, max: quota.max, plan: quota.plan }
@@ -306,6 +733,10 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
     setCurrentResult('');
 
     try {
+      const visualDescPayload = (visualRef && autoEmbedVisualDescription)
+        ? `${visualRef.visualDescriptionEn}\nStyle Directive: ${visualRef.styleSnippet}`
+        : undefined;
+
       const response = await fetch('/api/generate-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -316,19 +747,32 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
           category,
           language,
           useClarificationLoop,
+          visualDescription: visualDescPayload
         }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'فشل التوليد. يرجى مراجعة إعدادات الخادم.');
+        throw new Error(data.error || (lang === 'ar' ? 'فشل التوليد. يرجى مراجعة إعدادات الخادم أو استخدام النمط المجاني.' : 'Generation failed. Please try again or use Free Mode.'));
       }
       
-      const formattedPrompt = appendSiteUrlToPrompt(data.optimizedPrompt);
+      const promptRaw = data.optimizedPrompt || data.enhancedPrompt || data.originalPrompt || '';
+      const formattedPrompt = promptRaw ? appendSiteUrlToPrompt(promptRaw) : '';
       setCurrentResult(formattedPrompt);
+      setLastGeneratedMode('paid');
+
+      // Auto-scroll on smaller viewports so user immediately sees the generated result
+      setTimeout(() => {
+        const outputEl = document.querySelector('.xl\\:col-span-5');
+        if (outputEl && window.innerWidth < 1280) {
+          outputEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
       
       // Auto-analyze and suggest tags via Gemini
-      fetchSuggestedTags(formattedPrompt, category);
+      if (formattedPrompt) {
+        fetchSuggestedTags(formattedPrompt, category);
+      }
 
       if (onLogPrompt) {
         onLogPrompt({
@@ -339,7 +783,8 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
           category,
           actionType: 'generate',
           isFallback: data.isFallback,
-          tags: selectedTags
+          tags: selectedTags,
+          styleImage: visualRef?.image || null
         });
       }
     } catch (err: any) {
@@ -347,7 +792,264 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
     } finally {
       setLoading(false);
     }
-  }, [concept, model, tone, category, language, useClarificationLoop, onLogPrompt, fetchSuggestedTags, selectedTags]);
+  }, [
+    concept,
+    generationEngineMode,
+    visualRef,
+    autoEmbedVisualDescription,
+    category,
+    model,
+    language,
+    tone,
+    lang,
+    useClarificationLoop,
+    fetchSuggestedTags,
+    selectedTags,
+    onLogPrompt
+  ]);
+
+  // Bulk Generation Execution
+  const handleBulkGenerate = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (parsedBulkTopics.length === 0) return;
+
+    // ⚡ Free Bulk Mode Branch: 0 API calls, synthesizes all items locally from library
+    if (generationEngineMode === 'free') {
+      setIsBulkGenerating(true);
+      setErrorMsg('');
+
+      const initialItems = parsedBulkTopics.map((topic, index) => ({
+        id: `bulk-${Date.now()}-${index}`,
+        topic,
+        prompt: '',
+        status: 'pending' as const,
+      }));
+      setBulkResults(initialItems);
+      setBulkProgress({ current: 0, total: initialItems.length });
+
+      const visualDescPayload = (visualRef && autoEmbedVisualDescription)
+        ? `${visualRef.visualDescriptionEn}\nStyle Directive: ${visualRef.styleSnippet}`
+        : undefined;
+
+      for (let i = 0; i < initialItems.length; i++) {
+        const item = initialItems[i];
+        setBulkProgress({ current: i + 1, total: initialItems.length });
+
+        setBulkResults((prev) =>
+          prev.map((r, idx) => (idx === i ? { ...r, status: 'generating' } : r))
+        );
+
+        // Tactile delay
+        await new Promise((resolve) => setTimeout(resolve, 80));
+
+        const topicCategory = detectCategoryFromText(item.topic) || category;
+        const synth = buildLocalFreeSynthesizedPrompt(
+          item.topic,
+          topicCategory,
+          model,
+          language,
+          tone,
+          lang,
+          visualDescPayload
+        );
+        const formatted = appendSiteUrlToPrompt(synth);
+
+        setBulkResults((prev) =>
+          prev.map((r, idx) => (idx === i ? { ...r, prompt: formatted, status: 'completed' } : r))
+        );
+
+        if (onLogPrompt) {
+          onLogPrompt({
+            originalText: item.topic,
+            optimizedText: formatted,
+            model,
+            tone,
+            category: topicCategory,
+            actionType: 'generate',
+            isFallback: false,
+            tags: selectedTags,
+            styleImage: visualRef?.image || null
+          });
+        }
+      }
+
+      setIsBulkGenerating(false);
+      showToast(
+        lang === 'ar'
+          ? `✓ اكتمل توليد ${initialItems.length} برومبت محلياً ومجاناً 100% من مكتبة الموقع (0 API)!`
+          : `✓ Batch of ${initialItems.length} prompts synthesized locally (Free 0 API)!`,
+        false
+      );
+      return;
+    }
+
+    // 💎 Paid Bulk Mode Branch
+    const quota = checkGenerationQuota();
+    if (!quota.allowed) {
+      if (quota.requiresSubscription) {
+        setErrorMsg(
+          lang === 'ar'
+            ? '🛑 النمط المدفوع يتطلب اشتراكاً نشطاً. يمكنك التبديل للنمط "المجاني 0 API" في الأعلى للتوليد الفوري بلا مقابل.'
+            : '🛑 Paid mode requires an active subscription. You can switch to Free Mode above to generate instantly.'
+        );
+        window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+      } else {
+        setErrorMsg(
+          lang === 'ar'
+            ? `🛑 لقد استهلكت كامل حصتك اليومية من طلبات الـ API (${quota.max} طلباً). يرجى ترقية باقتك للاستمرار أو استخدام النمط المجاني.`
+            : `🛑 You have exhausted your daily API quota (${quota.max} requests). Please upgrade or use Free Mode.`
+        );
+        window.dispatchEvent(new CustomEvent('quota-threshold-reached', {
+          detail: { threshold: 100, used: quota.max, remaining: 0, max: quota.max, plan: quota.plan }
+        }));
+        window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+      }
+      return;
+    }
+
+    setIsBulkGenerating(true);
+    setErrorMsg('');
+
+    // Pre-populate items
+    const initialItems = parsedBulkTopics.map((topic, index) => ({
+      id: `bulk-${Date.now()}-${index}`,
+      topic,
+      prompt: '',
+      status: 'pending' as const,
+    }));
+    setBulkResults(initialItems);
+    setBulkProgress({ current: 0, total: initialItems.length });
+
+    const visualDescPayload = (visualRef && autoEmbedVisualDescription)
+      ? `${visualRef.visualDescriptionEn}\nStyle Directive: ${visualRef.styleSnippet}`
+      : undefined;
+
+    // Process topics sequentially with live feedback
+    for (let i = 0; i < initialItems.length; i++) {
+      const item = initialItems[i];
+      setBulkProgress({ current: i + 1, total: initialItems.length });
+
+      // Set active item status
+      setBulkResults((prev) =>
+        prev.map((r, idx) => (idx === i ? { ...r, status: 'generating' } : r))
+      );
+
+      try {
+        const topicCategory = detectCategoryFromText(item.topic) || category;
+        const response = await fetch('/api/generate-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rawConcept: item.topic,
+            model,
+            tone,
+            category: topicCategory,
+            language,
+            useClarificationLoop,
+            visualDescription: visualDescPayload
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to generate prompt');
+        }
+
+        const formatted = appendSiteUrlToPrompt(data.optimizedPrompt || data.enhancedPrompt || data.originalPrompt);
+
+        setBulkResults((prev) =>
+          prev.map((r, idx) => (idx === i ? { ...r, prompt: formatted, status: 'completed' } : r))
+        );
+
+        if (onLogPrompt) {
+          onLogPrompt({
+            originalText: item.topic,
+            optimizedText: formatted,
+            model,
+            tone,
+            category: topicCategory,
+            actionType: 'generate',
+            tags: selectedTags,
+            styleImage: visualRef?.image || null
+          });
+        }
+      } catch (err: any) {
+        console.warn(`Error generating bulk item ${i}:`, err);
+        setBulkResults((prev) =>
+          prev.map((r, idx) => (idx === i ? { ...r, status: 'error', error: err?.message || 'Error generating' } : r))
+        );
+      }
+    }
+
+    setIsBulkGenerating(false);
+    showToast(
+      lang === 'ar'
+        ? `✓ تم الانتهاء من توليد دفعة الأوامر (${initialItems.length} مواضيع)!`
+        : `✓ Batch generation completed (${initialItems.length} topics)!`,
+      false
+    );
+  }, [
+    parsedBulkTopics,
+    generationEngineMode,
+    model,
+    tone,
+    category,
+    language,
+    useClarificationLoop,
+    visualRef,
+    autoEmbedVisualDescription,
+    onLogPrompt,
+    selectedTags,
+    lang
+  ]);
+
+  const handleCopyAllBulk = useCallback(() => {
+    const completed = bulkResults.filter((r) => r.status === 'completed' && r.prompt);
+    if (completed.length === 0) return;
+
+    const combinedText = completed.map((r, idx) => 
+      `==============================\n# [${idx + 1}] Topic: ${r.topic}\n==============================\n\n${r.prompt}\n`
+    ).join('\n\n');
+
+    navigator.clipboard.writeText(appendSiteUrlToPrompt(combinedText));
+    setBulkCopiedAll(true);
+    showToast(lang === 'ar' ? `✓ تم نسخ جميع الأوامر المكتملة (${completed.length})!` : `✓ Copied all (${completed.length}) prompts!`);
+    setTimeout(() => setBulkCopiedAll(false), 2500);
+  }, [bulkResults, lang]);
+
+  const handleExportBulkTxt = useCallback(() => {
+    const completed = bulkResults.filter((r) => r.status === 'completed' && r.prompt);
+    if (completed.length === 0) return;
+
+    const combinedText = completed.map((r, idx) => 
+      `==============================\n# [${idx + 1}] Topic: ${r.topic}\n==============================\n\n${r.prompt}\n`
+    ).join('\n\n');
+
+    const blob = new Blob([appendSiteUrlToPrompt(combinedText)], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `arabiprompt-bulk-${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(lang === 'ar' ? '✓ تم تصدير الملف النصي بنجاح!' : '✓ Exported TXT file successfully!');
+  }, [bulkResults, lang]);
+
+  const handleCopySingleBulk = useCallback((id: string, text: string) => {
+    navigator.clipboard.writeText(appendSiteUrlToPrompt(text));
+    setBulkCopiedId(id);
+    showToast(lang === 'ar' ? '✓ تم نسخ الأمر للحافظة!' : '✓ Prompt copied!');
+    setTimeout(() => setBulkCopiedId(null), 2000);
+  }, [lang]);
+
+  const handleLoadSampleBulkTopics = useCallback(() => {
+    const sample = lang === 'ar'
+      ? 'استراتيجية تسويق رقمي لمنتج تقني جديد, تطبيق إدارة مهام بـ React و TypeScript, خطة تحسين سيو SEO متقدمة لموقع تجاري, فكرة سيناريو فيلم خيال علمي قصير'
+      : 'Digital marketing launch strategy for SaaS, Interactive Task management app in React, Comprehensive e-commerce SEO plan, Sci-fi cinematic short film concept';
+    setBulkInput(sample);
+  }, [lang]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -471,12 +1173,23 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-stone-100 pb-4">
             <div className="flex items-center gap-2">
               <Sliders className="w-5 h-5 text-[#c29b40]" />
-              <h3 className="text-lg font-bold text-stone-800">
+              <h3 className="text-base font-bold text-stone-800">
                 {lang === 'ar' ? '1. إعداد وصياغة سياق الفكرة المبتكرة' : '1. Define the Core Objectives'}
               </h3>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {onNavigateToLibrary && (
+                <button
+                  type="button"
+                  onClick={onNavigateToLibrary}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-[#c29b40] text-[#916a24] hover:text-stone-950 transition-all text-xs font-bold border border-[#c29b40]/25 cursor-pointer shadow-2xs group"
+                  title={lang === 'ar' ? 'استعراض مكتبة الـ 90 برومبت ومولد الأوامر الفوري بدون API' : 'Browse 90-Prompt Library & Meta-Synthesizer'}
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-[#c29b40] group-hover:text-stone-950 transition-colors" />
+                  <span>{lang === 'ar' ? 'مكتبة البرومتات (90)' : 'Prompt Library (90)'}</span>
+                </button>
+              )}
               {onNavigateToTemplates && (
                 <button
                   type="button"
@@ -503,49 +1216,491 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
             </div>
           </div>
 
-          <form onSubmit={handleGenerate} className="space-y-6">
+          <form onSubmit={builderMode === 'bulk' ? handleBulkGenerate : handleGenerate} className="space-y-6">
             
-            {/* Main prompt input */}
-            <div>
-              <label htmlFor="raw-concept-input" className="block text-sm font-bold text-stone-700 mb-2 font-sans">
-                {lang === 'ar' ? 'فكرة الأمر أو المسودة الأولية بكلماتك البسيطة' : 'Input your raw thoughts, questions or code idea'}
-              </label>
-
-              <textarea
-                id="raw-concept-input"
-                rows={5}
-                required
-                value={concept}
-                onChange={(e) => setConcept(e.target.value)}
-                placeholder={
-                  lang === 'ar'
-                    ? 'اكتب الفكرة الأساسية هنا... ستقوم المنصة بتحويل شتات الكلمات لأمر معقد يشمل دور الذكاء والتعليمات والقيود.'
-                    : 'Describe what you want to achieve, explain in your own native words...'
-                }
-                className="w-full text-sm rounded-xl border border-stone-300 p-4 focus:outline-none focus:ring-2 focus:ring-[#c29b40]/30 focus:border-[#c29b40] bg-[#fdfdfc] text-stone-800 placeholder-stone-400 font-sans"
-              />
+            {/* Generation Mode Selector: Single Prompt vs Bulk Generation */}
+            <div className="bg-stone-100 dark:bg-stone-800/70 p-1 rounded-xl border border-stone-200 dark:border-stone-700/80 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setBuilderMode('single')}
+                className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  builderMode === 'single'
+                    ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs border border-stone-200/80 dark:border-stone-700'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-white/40'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#c29b40]" />
+                <span>{lang === 'ar' ? 'توليد منفرد' : 'Single Prompt'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBuilderMode('bulk')}
+                className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  builderMode === 'bulk'
+                    ? 'bg-gradient-to-r from-[#916a24] to-[#c29b40] text-white shadow-xs'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-white/40'
+                }`}
+              >
+                <ListPlus className="w-3.5 h-3.5" />
+                <span>{lang === 'ar' ? 'توليد جماعي / دفعات' : 'Bulk Generation'}</span>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-amber-400 text-stone-950">
+                  {lang === 'ar' ? 'جديد' : 'NEW'}
+                </span>
+              </button>
             </div>
 
-            {/* Quick Presets tags - disappears when the user starts typing */}
-            {!concept.trim() && (
-              <div className="transition-all duration-300 animate-in fade-in">
-                <span className="text-xs font-bold text-stone-500 block mb-2">
-                  {lang === 'ar' ? '💡 أفكار مقترحة للبدء السريع:' : '💡 Fast suggestions for playground testing:'}
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {ideaPresets.map((preset, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => setConcept(lang === 'ar' ? preset.ar : preset.en)}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-[#c29b40]/10 hover:text-[#916a24] text-stone-600 transition-all border border-stone-200 max-w-xs truncate text-right rtl:text-right"
-                    >
-                      {lang === 'ar' ? preset.ar : preset.en}
-                    </button>
-                  ))}
+            {/* Input fields based on active builder mode */}
+            {builderMode === 'bulk' ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="bulk-topics-input" className="block text-xs sm:text-sm font-bold text-stone-700 dark:text-stone-300 font-sans">
+                    {lang === 'ar' ? 'قائمة المواضيع لتوليد برومبتات لها (مفصولة بفواصل أو أسطر)' : 'Topics for batch prompt generation (comma or line separated)'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleLoadSampleBulkTopics}
+                    className="text-xs font-bold text-[#916a24] dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>{lang === 'ar' ? 'تحميل أمثلة تجريبية' : 'Load sample topics'}</span>
+                  </button>
+                </div>
+
+                <textarea
+                  id="bulk-topics-input"
+                  rows={5}
+                  value={bulkInput}
+                  onChange={(e) => setBulkInput(e.target.value)}
+                  placeholder={
+                    lang === 'ar'
+                      ? 'اكتب عدة مواضيع مفصولة بفواصل أو سطر جديد، مثلاً:\n1. متجر إلكتروني للملابس الرياضية بالذكاء الاصطناعي\n2. شعار ثلاثي الأبعاد لشركة استشارات تقنية\n3. استراتيجية تحسين محركات البحث SEO لمدونة طبية'
+                      : 'Enter multiple topics separated by commas or lines, e.g.:\n1. AI Fitness E-commerce Store\n2. 3D Geometric Logo for Tech Startup\n3. SEO Growth Strategy for Medical Blog'
+                  }
+                  className="w-full text-xs sm:text-sm rounded-xl border border-stone-300 dark:border-stone-700 p-3.5 focus:outline-none focus:ring-2 focus:ring-[#c29b40]/30 focus:border-[#c29b40] bg-[#fdfdfc] dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-400 font-sans"
+                />
+
+                {/* Detected topics chip badges */}
+                <div className="p-3 rounded-xl bg-stone-100/90 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-stone-750 dark:text-stone-200 flex items-center gap-1.5">
+                      <ListPlus className="w-3.5 h-3.5 text-[#c29b40]" />
+                      <span>
+                        {lang === 'ar'
+                          ? `المواضيع المكتشفة (${parsedBulkTopics.length}):`
+                          : `Parsed Topics (${parsedBulkTopics.length}):`}
+                      </span>
+                    </span>
+                    {parsedBulkTopics.length > 0 && (
+                      <span className="text-[10px] text-stone-500 font-medium">
+                        {lang === 'ar' ? 'توليد وهندسة مخصصة لكل موضوع' : 'Custom engineering per topic'}
+                      </span>
+                    )}
+                  </div>
+
+                  {parsedBulkTopics.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                      {parsedBulkTopics.map((topic, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-750 font-medium shadow-2xs"
+                        >
+                          <span className="w-4 h-4 rounded-full bg-[#c29b40]/20 text-[#916a24] dark:text-amber-400 text-[10px] font-black flex items-center justify-center">
+                            {idx + 1}
+                          </span>
+                          <span className="max-w-[200px] truncate">{topic}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-stone-500 italic">
+                      {lang === 'ar'
+                        ? 'لم يتم إدخال مواضيع بعد. أدخل موضوعين على الأقل في المربع أعلاه أو اضغط "تحميل أمثلة تجريبية".'
+                        : 'No topics detected yet. Enter at least two topics above or click "Load sample topics".'}
+                    </p>
+                  )}
                 </div>
               </div>
+            ) : (
+              <>
+                {/* Main prompt input */}
+                <div>
+                  <label htmlFor="raw-concept-input" className="block text-xs sm:text-sm font-bold text-stone-700 mb-2 font-sans">
+                    {lang === 'ar' ? 'فكرة الأمر أو المسودة الأولية بكلماتك البسيطة' : 'Input your raw thoughts, questions or code idea'}
+                  </label>
+
+                  <textarea
+                    id="raw-concept-input"
+                    rows={5}
+                    required={builderMode === 'single'}
+                    value={concept}
+                    onChange={(e) => setConcept(e.target.value)}
+                    placeholder={
+                      lang === 'ar'
+                        ? 'اكتب الفكرة الأساسية هنا... ستقوم المنصة بتحويل شتات الكلمات لأمر معقد يشمل دور الذكاء والتعليمات والقيود.'
+                        : 'Describe what you want to achieve, explain in your own native words...'
+                    }
+                    className="w-full text-xs sm:text-sm rounded-xl border border-stone-300 p-3.5 focus:outline-none focus:ring-2 focus:ring-[#c29b40]/30 focus:border-[#c29b40] bg-[#fdfdfc] text-stone-800 placeholder-stone-400 font-sans"
+                  />
+
+                  {/* 🎛️ Mode Selector: خيار بين المجاني (0 API محلي من المكتبة) أو المدفوع (Gemini AI Cloud Pro) */}
+                  <div className="mt-3 p-3 rounded-2xl bg-gradient-to-b from-stone-50 to-stone-100/70 dark:from-stone-900/80 dark:to-stone-900/40 border border-stone-200/90 dark:border-stone-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5 font-sans">
+                        <Zap className="w-3.5 h-3.5 text-[#c29b40]" />
+                        <span>{lang === 'ar' ? 'حدد مسار التوليد (مجاني من المكتبة أو مدفوع سحابي):' : 'Select Generation Engine (Free Local or Paid Cloud):'}</span>
+                      </span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                        generationEngineMode === 'free'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300'
+                          : 'bg-amber-100 text-[#916a24] dark:bg-amber-950/70 dark:text-amber-300 border-amber-300'
+                      }`}>
+                        {generationEngineMode === 'free'
+                          ? (lang === 'ar' ? '⚡ النمط المجاني مفعّل' : '⚡ Free Mode Active')
+                          : (lang === 'ar' ? '💎 النمط المدفوع مفعّل' : '💎 Paid Mode Active')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* Option 1: المجاني 100% من داخل الموقع دون Gemini */}
+                      <button
+                        type="button"
+                        onClick={() => setGenerationEngineMode('free')}
+                        className={`p-3 rounded-xl border text-right rtl:text-right transition-all flex flex-col gap-1.5 cursor-pointer relative ${
+                          generationEngineMode === 'free'
+                            ? 'bg-white dark:bg-stone-850 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
+                            : 'bg-white/60 dark:bg-stone-900/50 border-stone-200 dark:border-stone-800 hover:border-stone-300 text-stone-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-base">⚡</span>
+                            <span className={`text-xs font-black ${generationEngineMode === 'free' ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-700 dark:text-stone-300'}`}>
+                              {lang === 'ar' ? 'نمط مجاني (مكتبة الموقع)' : 'Free Mode (Local Library)'}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80">
+                            {lang === 'ar' ? '0 استهلاك رصيد' : '0 Quota'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-snug">
+                          {lang === 'ar'
+                            ? 'توليد فوري مستحضر من المكتبة ومعايير التخصص دون جمني أو قيود اشتراك — يعمل 100% داخل الموقع.'
+                            : 'Instant synthesis from local library rules with zero API consumption and no subscription barriers.'}
+                        </p>
+                        {generationEngineMode === 'free' && (
+                          <div className="flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400 mt-0.5">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>{lang === 'ar' ? 'مختار حالياً: توليد فوري مجاني 100%' : 'Selected: 100% Free Local'}</span>
+                          </div>
+                        )}
+                      </button>
+
+                      {/* Option 2: المدفوع عبر Gemini Cloud */}
+                      <button
+                        type="button"
+                        onClick={() => setGenerationEngineMode('paid')}
+                        className={`p-3 rounded-xl border text-right rtl:text-right transition-all flex flex-col gap-1.5 cursor-pointer relative ${
+                          generationEngineMode === 'paid'
+                            ? 'bg-white dark:bg-stone-850 border-[#c29b40] shadow-sm ring-2 ring-[#c29b40]/25'
+                            : 'bg-white/60 dark:bg-stone-900/50 border-stone-200 dark:border-stone-800 hover:border-stone-300 text-stone-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-base">💎</span>
+                            <span className={`text-xs font-black ${generationEngineMode === 'paid' ? 'text-[#916a24] dark:text-amber-400' : 'text-stone-700 dark:text-stone-300'}`}>
+                              {lang === 'ar' ? 'نمط مدفوع (Gemini Pro AI)' : 'Paid Mode (Gemini Pro AI)'}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-[#916a24] dark:text-amber-300 border border-amber-200/80">
+                            {lang === 'ar' ? 'سحابي ذكي' : 'Cloud AI'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-snug">
+                          {lang === 'ar'
+                            ? 'استدعاء سحابي لنموذج Google Gemini 2.5 Pro للتحليل العميق والتفكير المتقدم للمشتركين.'
+                            : 'Advanced cloud reasoning via Google Gemini 2.5 Pro for active subscribers.'}
+                        </p>
+                        {generationEngineMode === 'paid' && (
+                          <div className="flex items-center gap-1 text-[10px] font-black text-[#916a24] dark:text-amber-400 mt-0.5">
+                            <CheckCircle2 className="w-3 h-3 text-[#c29b40]" />
+                            <span>{lang === 'ar' ? 'مختار حالياً: معالجة Gemini Cloud' : 'Selected: Gemini Cloud'}</span>
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets tags - disappears when the user starts typing */}
+                {!concept.trim() && (
+                  <div className="transition-all duration-300 animate-in fade-in">
+                    <span className="text-xs font-bold text-stone-500 block mb-2">
+                      {lang === 'ar' ? '💡 أفكار مقترحة للبدء السريع:' : '💡 Fast suggestions for playground testing:'}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {ideaPresets.map((preset, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => setConcept(lang === 'ar' ? preset.ar : preset.en)}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-[#c29b40]/10 hover:text-[#916a24] text-stone-600 transition-all border border-stone-200 max-w-xs truncate text-right rtl:text-right cursor-pointer"
+                        >
+                          {lang === 'ar' ? preset.ar : preset.en}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
+
+            {/* 📸 Visual Reference Drag & Drop & AI Visual Description Section */}
+            <div className="bg-stone-50/90 dark:bg-stone-900/60 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 space-y-3 transition-all">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#916a24] to-[#c29b40] text-white flex items-center justify-center shadow-xs">
+                    <Camera className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-stone-850 dark:text-stone-100 flex items-center gap-1.5 font-sans">
+                      <span>{lang === 'ar' ? 'صورة مرجعية واستخراج الوصف البصري' : 'Visual Reference & Drag & Drop AI Analysis'}</span>
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-500/15 text-[#916a24] dark:text-amber-400 border border-amber-500/20">
+                        {lang === 'ar' ? 'تضمين تلقائي ✨' : 'Auto Embed ✨'}
+                      </span>
+                    </h4>
+                    <p className="text-[10px] text-stone-500 dark:text-stone-400">
+                      {lang === 'ar'
+                        ? 'اسحب صورة هنا لتحليل تفاصيلها البصرية (الإضاءة، العدسة، الألوان) وتضمينها فوراً في البرومبت'
+                        : 'Drop an image to extract lighting, camera physics, palette and auto-inject into prompt formulation'}
+                    </p>
+                  </div>
+                </div>
+
+                {visualRef && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVisualRef(null);
+                      showToast(lang === 'ar' ? 'تمت إزالة الصورة المرجعية' : 'Visual reference removed');
+                    }}
+                    className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer text-xs flex items-center gap-1 font-bold"
+                    title={lang === 'ar' ? 'إزالة الصورة المرجعية' : 'Remove reference image'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{lang === 'ar' ? 'إزالة' : 'Remove'}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Hidden File Input for click-to-upload */}
+              <input
+                ref={visualFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    processVisualReferenceFile(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+
+              {!visualRef ? (
+                /* DROP ZONE (EMPTY STATE) */
+                <div
+                  onDragOver={handleVisualRefDragOver}
+                  onDragLeave={handleVisualRefDragLeave}
+                  onDrop={handleVisualRefDrop}
+                  onClick={() => visualFileInputRef.current?.click()}
+                  className={`relative border-2 border-dashed rounded-xl p-5 sm:p-6 transition-all duration-200 cursor-pointer text-center flex flex-col items-center justify-center gap-2 group ${
+                    isDragOverVisualRef
+                      ? 'border-[#c29b40] bg-[#c29b40]/15 scale-[1.01] shadow-md ring-2 ring-[#c29b40]/30'
+                      : 'border-stone-300 dark:border-stone-700 bg-white/70 dark:bg-stone-850/60 hover:border-[#c29b40]/70 hover:bg-[#c29b40]/5'
+                  }`}
+                >
+                  {isAnalyzingVisualRef ? (
+                    <div className="py-2 flex flex-col items-center gap-2 animate-pulse">
+                      <RefreshCw className="w-6 h-6 text-[#c29b40] animate-spin" />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-stone-800 dark:text-stone-100 block">
+                          {lang === 'ar' ? 'جاري التحليل البصري العميق عبر Google Gemini...' : 'Analyzing visual DNA via Google Gemini...'}
+                        </span>
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400">
+                          {lang === 'ar' ? 'استخلاص الإضاءة، العدسات، النمط الفني، والألوان السائدة' : 'Extracting lighting, camera optics, medium and palette'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 group-hover:bg-[#c29b40]/15 text-stone-500 group-hover:text-[#916a24] dark:group-hover:text-amber-400 flex items-center justify-center transition shadow-2xs">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-stone-700 dark:text-stone-200 group-hover:text-[#916a24] dark:group-hover:text-amber-400 block transition">
+                          {lang === 'ar' ? 'اسحب وأفلت صورة مرجعية هنا أو اضغط للتصفح' : 'Drag & drop a reference image here or click to browse'}
+                        </span>
+                        <p className="text-[10px] text-stone-400 dark:text-stone-500">
+                          {lang === 'ar' ? 'يدعم PNG, JPG, WEBP — لاستخراج "الوصف البصري" وتضمينه تلقائياً في البرومبت' : 'Supports PNG, JPG, WEBP — extracts visual description & auto-embeds into prompt'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* ANALYZED REFERENCE CARD */
+                <div className="bg-white dark:bg-stone-850 rounded-xl border border-stone-200 dark:border-stone-750 p-3 sm:p-4 shadow-2xs space-y-3 animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row gap-3 items-start">
+                    {/* Thumbnail Preview */}
+                    <div className="relative group shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 bg-stone-100 shadow-2xs">
+                      <img
+                        src={visualRef.image}
+                        alt="Reference preview"
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-200 cursor-pointer"
+                        onClick={() => setPreviewModalImage(visualRef.image)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewModalImage(visualRef.image)}
+                        className="absolute inset-0 bg-stone-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition text-[10px] font-bold gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>{lang === 'ar' ? 'تكبير' : 'View'}</span>
+                      </button>
+                    </div>
+
+                    {/* Extracted Visual Description Text */}
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{lang === 'ar' ? 'تم استخراج الوصف البصري بنجاح' : 'Visual Description Extracted'}</span>
+                        </span>
+                        {visualRef.fileName && (
+                          <span className="text-[10px] text-stone-400 truncate max-w-[150px]">
+                            {visualRef.fileName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Bilingual Description text box */}
+                      <div className="p-2.5 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 text-[11px] text-stone-700 dark:text-stone-300 leading-relaxed max-h-32 overflow-y-auto font-sans">
+                        <p className="font-medium">
+                          {lang === 'ar' ? visualRef.visualDescriptionAr : visualRef.visualDescriptionEn}
+                        </p>
+                        {visualRef.styleSnippet && (
+                          <div className="mt-1.5 pt-1.5 border-t border-stone-200/60 dark:border-stone-800 text-[10px] text-[#916a24] dark:text-amber-400 font-mono">
+                            <span className="font-bold">{lang === 'ar' ? 'صيغة الأسلوب:' : 'Style Clause:'} </span>
+                            <span>{visualRef.styleSnippet}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Visual Attributes Badges */}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5 text-[10px]">
+                        {visualRef.attributes?.medium && (
+                          <span className="px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 font-medium">
+                            🎨 {visualRef.attributes.medium}
+                          </span>
+                        )}
+                        {visualRef.attributes?.lighting && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-[#916a24] dark:text-amber-400 border border-amber-500/20 font-medium">
+                            ☀️ {visualRef.attributes.lighting}
+                          </span>
+                        )}
+                        {visualRef.attributes?.camera && (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 font-medium">
+                            📷 {visualRef.attributes.camera}
+                          </span>
+                        )}
+                        {visualRef.attributes?.mood && (
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20 font-medium">
+                            ✨ {visualRef.attributes.mood}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Palette Dots */}
+                      {visualRef.attributes?.palette && visualRef.attributes.palette.length > 0 && (
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-stone-400 font-bold">{lang === 'ar' ? 'لوحة الألوان:' : 'Palette:'}</span>
+                          <div className="flex items-center gap-1">
+                            {visualRef.attributes.palette.map((hex, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => handleCopyHexColor(hex)}
+                                style={{ backgroundColor: hex }}
+                                className="w-4 h-4 rounded-full border border-stone-300 shadow-2xs hover:scale-125 transition cursor-pointer relative group"
+                                title={`Copy ${hex}`}
+                              >
+                                {copiedHexColor === hex && (
+                                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] bg-stone-900 text-white px-1 rounded shadow-xs">✓</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions & Auto-Embed Toggle */}
+                  <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    {/* Auto-embed toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoEmbedVisualDescription}
+                        onChange={(e) => setAutoEmbedVisualDescription(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#c29b40] focus:ring-[#c29b40] cursor-pointer"
+                      />
+                      <span className="text-[11px] font-bold text-stone-700 dark:text-stone-300">
+                        {lang === 'ar' ? 'تضمين الوصف البصري تلقائياً في صياغة البرومبت' : 'Auto-embed visual description into prompt'}
+                      </span>
+                    </label>
+
+                    {/* Quick helper buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleInsertVisualDescriptionIntoConcept}
+                        className="px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-750 text-stone-700 dark:text-stone-300 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                        title={lang === 'ar' ? 'إدراج نص الوصف البصري في حقل الفكرة لتعديله يدوياً' : 'Insert visual description text into concept textarea'}
+                      >
+                        <FileText className="w-3 h-3 text-[#c29b40]" />
+                        <span>{lang === 'ar' ? 'إدراج في الفكرة ✍️' : 'Insert into Concept'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCategory('visual');
+                          setModel('midjourney');
+                          showToast(lang === 'ar' ? '✓ تم ضبط التصنيف على هندسة بصرية و Midjourney' : '✓ Set to Visual category & Midjourney');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-[#916a24] dark:text-amber-400 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer border border-amber-500/20"
+                        title={lang === 'ar' ? 'ضبط النموذج على Midjourney وهندسة الأوامر البصرية' : 'Align model to Midjourney visual generation'}
+                      >
+                        <Wand2 className="w-3 h-3" />
+                        <span>{lang === 'ar' ? 'نمط Midjourney 📸' : 'Midjourney Mode'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => visualFileInputRef.current?.click()}
+                        className="px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>{lang === 'ar' ? 'استبدال الصورة' : 'Replace Image'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Selection Grid for tuning options */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -877,28 +2032,99 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
             </div>
 
             {/* Action submit */}
-            <button
-              id="generate-prompt-submit"
-              type="submit"
-              disabled={loading || !concept.trim()}
-              className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
-                loading || !concept.trim()
-                  ? 'bg-stone-300 dark:bg-stone-800/80 text-stone-500 dark:text-stone-500 border border-transparent dark:border-stone-700/60 cursor-not-allowed shadow-none'
-                  : 'bg-[#c29b40] hover:bg-[#a6802f] shadow-[#c29b40]/20 text-stone-950 font-black'
-              }`}
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  <span>{lang === 'ar' ? 'يرجى الانتظار، جاري هندسة وتثبيت المدخلات...' : 'Engineering custom input tokens...'}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-white" />
-                  <span>{lang === 'ar' ? 'توليد وهندسة البرومبت (Ctrl+Enter)' : 'Synthesize and Engineer Prompt (Ctrl+Enter)'}</span>
-                </>
-              )}
-            </button>
+            {builderMode === 'bulk' ? (
+              <button
+                id="generate-bulk-submit"
+                type="submit"
+                disabled={isBulkGenerating || parsedBulkTopics.length === 0}
+                className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  isBulkGenerating || parsedBulkTopics.length === 0
+                    ? 'bg-stone-300 dark:bg-stone-800/80 text-stone-500 dark:text-stone-500 border border-transparent dark:border-stone-700/60 cursor-not-allowed shadow-none'
+                    : generationEngineMode === 'free'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 shadow-emerald-700/25 text-white font-black'
+                    : 'bg-gradient-to-r from-[#916a24] via-[#c29b40] to-[#b38d35] hover:opacity-95 shadow-[#c29b40]/25 text-white font-black'
+                }`}
+              >
+                {isBulkGenerating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    <span>
+                      {lang === 'ar'
+                        ? `جاري توليد الدفعة (${bulkProgress.current} من ${bulkProgress.total})...`
+                        : `Generating Batch (${bulkProgress.current}/${bulkProgress.total})...`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {generationEngineMode === 'free' ? (
+                      <>
+                        <Zap className="w-4 h-4 text-amber-300" />
+                        <span>
+                          {lang === 'ar'
+                            ? `⚡ بدء التوليد الجماعي المجاني (0 API • ${parsedBulkTopics.length} برومبت)`
+                            : `⚡ Generate All Free Prompts (${parsedBulkTopics.length})`}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <ListPlus className="w-4 h-4 text-white" />
+                        <span>
+                          {lang === 'ar'
+                            ? `💎 بدء التوليد الجماعي المدفوع (${parsedBulkTopics.length} برومبت)`
+                            : `💎 Generate All Batch Prompts (${parsedBulkTopics.length})`}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                id="generate-prompt-submit"
+                type="submit"
+                disabled={loading || !concept.trim()}
+                className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  loading || !concept.trim()
+                    ? 'bg-stone-300 dark:bg-stone-800/80 text-stone-500 dark:text-stone-500 border border-transparent dark:border-stone-700/60 cursor-not-allowed shadow-none'
+                    : generationEngineMode === 'free'
+                    ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 shadow-emerald-700/25 text-white font-black'
+                    : 'bg-[#c29b40] hover:bg-[#a6802f] shadow-[#c29b40]/20 text-stone-950 font-black'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    <span>
+                      {generationEngineMode === 'free'
+                        ? (lang === 'ar' ? 'جاري التوليف المجاني من مكتبة الموقع (0 API)...' : 'Synthesizing from local library...')
+                        : (lang === 'ar' ? 'يرجى الانتظار، جاري هندسة وتثبيت المدخلات عبر Gemini...' : 'Engineering custom input tokens via Gemini...')}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {generationEngineMode === 'free' ? (
+                      <>
+                        <Zap className="w-4 h-4 text-amber-300" />
+                        <span>
+                          {lang === 'ar'
+                            ? '⚡ توليد البرومبت مجاناً (من مكتبة الموقع • 0 API)'
+                            : '⚡ Synthesize Free Prompt (0 API • Local Library)'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-white" />
+                        <span>
+                          {lang === 'ar'
+                            ? '💎 توليد البرومبت المدفوع (Gemini 2.5 Pro Cloud AI)'
+                            : '💎 Synthesize Paid Prompt (Gemini 2.5 Pro Cloud AI)'}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+              </button>
+            )}
 
           </form>
         </section>
@@ -906,270 +2132,647 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
         {/* Display Output Workspace Screen (5 / 12 width) */}
         <section className="xl:col-span-5 bg-stone-50 rounded-2xl border border-stone-200 p-5 sm:p-8 min-h-[400px] flex flex-col justify-between relative">
           
-          <div className="flex items-center justify-between mb-4 border-b border-stone-200/60 pb-3">
-            <div className="flex items-center gap-2 text-stone-700">
-              <Cpu className="w-4 h-4 text-[#c29b40]" />
-              <span className="text-xs font-bold tracking-wider">
-                {lang === 'ar' ? '2. مخرجات جودة هندسة الأوامر الحالية' : '2. Engineered Output Workspace'}
-              </span>
-            </div>
-            {saveNotification ? (
-              <span className="text-[10px] font-black text-emerald-800 px-2.5 py-0.5 bg-emerald-100 rounded-full border border-emerald-300 animate-pulse">
-                {saveNotification}
-              </span>
-            ) : currentResult ? (
-              <span className="text-[10px] font-bold text-emerald-700 px-2 py-0.5 bg-emerald-100 rounded-full">
-                {lang === 'ar' ? 'برومبت جاهز' : 'Output compiled'}
-              </span>
-            ) : null}
-          </div>
-
-          {/* Loading Pulse Frame with AdSense Banner and "انتظر" (Please Wait) notice */}
-          {loading && !currentResult && (
-            <div className="flex-1 flex flex-col items-center justify-center py-6 px-2 text-center space-y-4">
-              
-              {/* Top Spinner with Prominent "انتظر" Header */}
-              <div className="flex flex-col items-center space-y-2">
-                <div className="relative">
-                  <div className="w-14 h-14 rounded-full border-4 border-[#c29b40]/25 border-t-[#c29b40] animate-spin" />
-                  <Sparkles className="w-6 h-6 text-[#c29b40] absolute inset-0 m-auto animate-pulse" />
-                </div>
-                
-                {/* Prominent "انتظر" Badge / Title */}
-                <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-500/15 border border-[#c29b40]/35 text-[#916a24] dark:text-amber-400 font-black text-xs sm:text-sm shadow-xs animate-pulse">
-                  <span>⏳</span>
-                  <span>{lang === 'ar' ? 'انتظر... جاري تصميم وهندسة البرومبت' : 'Please wait... Engineering your prompt'}</span>
-                </div>
-
-                <p className="text-xs font-bold text-stone-700 dark:text-stone-300">
-                  {lang === 'ar' ? 'جاري الصياغة الفلسفية للأمر بواسطة Gemini...' : 'Structuring rules, variable boundaries, and personas...'}
-                </p>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400 max-w-sm">
-                  {lang === 'ar' ? 'نقوم بكتابة الهياكل البرمجية والتعليقات والقيود المناسبة لتصغير الهلوسة.' : 'Refining target variables to prevent incorrect answers.'}
-                </p>
-              </div>
-
-              {/* Google AdSense Banner displayed directly during prompt generation */}
-              <div className="w-full max-w-md mx-auto">
-                <AdSenseBanner
-                  client="ca-pub-3312377428939400"
-                  lang={lang}
-                  showPlaceholderBadge={true}
-                />
-              </div>
-
-              {/* Progress Bar indicator */}
-              <div className="w-48 h-1.5 bg-stone-200 dark:bg-stone-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-400 rounded-full animate-pulse w-3/4" />
-              </div>
-            </div>
-          )}
-
-          {/* Error Message Box */}
-          {errorMsg && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-4 text-xs font-medium flex items-start gap-2.5 mb-4 font-sans">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold">{lang === 'ar' ? 'خطأ تقني:' : 'Gemini Error:'}</span> {errorMsg}
-                <p className="text-[10px] text-rose-500 mt-1">
-                  {lang === 'ar' ? 'يرجى مراجعة إدخال مفتاح الـ API في قائمة "Settings" بالأعلى إذا لم يتم توفيره.' : 'Verify process credentials if locally simulating the server.'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Empty fallback screen */}
-          {!loading && !currentResult && !errorMsg && (
-            <div className="flex-1 flex flex-col items-center justify-center py-12 text-stone-400 text-center">
-              <Sparkles className="w-10 h-10 text-stone-300 mb-3" />
-              <p className="text-xs font-bold text-stone-600">
-                {lang === 'ar' ? 'بانتظار الصياغة والتوليد المباشر' : 'Your engineered prompt appears here'}
-              </p>
-              <p className="text-[11px] text-stone-400 max-w-xs mt-1">
-                {lang === 'ar'
-                  ? 'يرجى ملء تفاصيل الفكرة في القائمة الجانبية ثم النقر على "توليد" ليظهر لك الكود المحسن للنسخ المباشر.'
-                  : 'Specify an idea or a prompt draft in the left configurations panel, then click generating.'}
-              </p>
-            </div>
-          )}
-
-          {/* Render result text */}
-          {currentResult && (
+          {builderMode === 'bulk' ? (
             <div className="flex-1 flex flex-col justify-between">
-              
-              {/* Real-time Prompt Quality Score Diagnostics */}
-              <PromptQualityScore promptText={currentResult} lang={lang} />
-
-              {/* Output Scroll area */}
-              <VariableHighlighterEditor
-                value={currentResult}
-                onChange={setCurrentResult}
-                dir={language === 'ar' ? 'rtl' : 'ltr'}
-                lang={lang}
-                placeholder={lang === 'ar' ? 'هنا سيظهر البرومبت الهندسي...' : 'System prompt appears here...'}
-              />
-              <p className="text-[10px] text-stone-500 mt-2 text-right rtl:text-right">
-                {lang === 'ar' 
-                  ? '💡 يمكنك تعديل البرومبت مباشرة! المتغيرات المحاطة بـ [ ] سيتم إبرازها تلقائياً بوضوح.' 
-                  : '💡 Click inside to edit the prompt! Variables enclosed in [ ] are automatically highlighted.'
-                }
-              </p>
-
-              {/* AI Auto-Tagging & Taxonomy Manager */}
-              <div className="mt-3.5 p-3 rounded-xl bg-stone-100/90 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-stone-700 dark:text-stone-300 text-xs font-bold">
-                    <Tag className="w-3.5 h-3.5 text-[#c29b40]" />
-                    <span>{lang === 'ar' ? 'الوسوم التنظيمية الذكية (Smart Tags):' : 'Organizational Tags:'}</span>
-                    {selectedTags.length > 0 && (
-                      <span className="text-[10px] font-mono bg-[#c29b40]/20 text-[#916a24] dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold">
-                        {selectedTags.length}
-                      </span>
-                    )}
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4 border-b border-stone-200/60 pb-3">
+                  <div className="flex items-center gap-2 text-stone-700">
+                    <ListPlus className="w-4 h-4 text-[#c29b40]" />
+                    <span className="text-xs font-bold tracking-wider">
+                      {lang === 'ar' ? '2. مخرجات التوليد الجماعي (Bulk Results)' : '2. Bulk Generation Results'}
+                    </span>
                   </div>
-                  
-                  <button
-                    type="button"
-                    onClick={() => fetchSuggestedTags(currentResult || concept, category)}
-                    disabled={isSuggestingTags}
-                    className="text-[11px] font-bold text-[#916a24] hover:text-[#78551b] dark:text-amber-400 flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-[#c29b40]/10 transition-all cursor-pointer"
-                    title={lang === 'ar' ? 'إعادة تحليل واقتراح وسوم بالذكاء الاصطناعي' : 'Re-analyze and suggest tags with Gemini'}
-                  >
-                    <Sparkles className={`w-3 h-3 ${isSuggestingTags ? 'animate-spin text-[#c29b40]' : 'text-[#c29b40]'}`} />
-                    <span>{isSuggestingTags ? (lang === 'ar' ? 'جاري التحليل...' : 'Analyzing...') : (lang === 'ar' ? 'اقتراح وسوم AI' : 'Auto-Suggest Tags')}</span>
-                  </button>
+                  {bulkResults.length > 0 && (
+                    <span className="text-[10px] font-bold text-stone-700 px-2 py-0.5 bg-stone-100 rounded-full border border-stone-200">
+                      {bulkResults.filter((r) => r.status === 'completed').length} / {bulkResults.length}{' '}
+                      {lang === 'ar' ? 'مكتمل' : 'completed'}
+                    </span>
+                  )}
                 </div>
 
-                {/* Tag pills list */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {Array.from(new Set([...selectedTags, ...suggestedTags])).map((tag) => {
-                    const isSelected = selectedTags.includes(tag);
-                    return (
+                {/* Bulk Action Toolbar */}
+                {bulkResults.length > 0 && (
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-stone-100/90 border border-stone-200">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={tag}
                         type="button"
-                        onClick={() => toggleTag(tag)}
-                        className={`text-xs px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer border ${
-                          isSelected
-                            ? 'bg-[#c29b40] text-stone-950 border-[#b38d35] shadow-xs'
-                            : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-300 dark:border-stone-700 hover:border-stone-400 hover:bg-stone-50'
-                        }`}
+                        onClick={handleCopyAllBulk}
+                        disabled={bulkResults.filter((r) => r.status === 'completed').length === 0}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#c29b40] hover:bg-[#a6802f] text-stone-950 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isSelected ? <Check className="w-3 h-3 text-stone-950" /> : <Hash className="w-3 h-3 text-stone-400" />}
-                        <span>{tag}</span>
-                        {isSelected && (
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeTag(tag);
-                            }}
-                            className="hover:text-rose-700 ml-0.5 cursor-pointer"
-                            title={lang === 'ar' ? 'إزالة' : 'Remove'}
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </span>
+                        {bulkCopiedAll ? (
+                          <>
+                            <CheckCheck className="w-3.5 h-3.5" />
+                            <span>{lang === 'ar' ? 'تم نسخ الكل!' : 'All Copied!'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>{lang === 'ar' ? 'نسخ كافة الأوامر' : 'Copy All'}</span>
+                          </>
                         )}
                       </button>
-                    );
-                  })}
 
-                  {/* Custom Tag Input */}
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={customTagInput}
-                      onChange={(e) => setCustomTagInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCustomTag();
-                        }
-                      }}
-                      placeholder={lang === 'ar' ? '+ أضف وسماً...' : '+ Add tag...'}
-                      className="text-[11px] px-2 py-1 rounded-lg border border-dashed border-stone-300 dark:border-stone-700 bg-white/80 dark:bg-stone-800/80 focus:bg-white focus:outline-none focus:border-[#c29b40] w-24 text-stone-700 dark:text-stone-200 placeholder-stone-400"
-                    />
-                    {customTagInput.trim() && (
                       <button
                         type="button"
-                        onClick={handleAddCustomTag}
-                        className="p-1 rounded-md bg-[#c29b40] text-stone-950 text-xs font-bold hover:bg-[#a6802f] transition-all cursor-pointer"
+                        onClick={handleExportBulkTxt}
+                        disabled={bulkResults.filter((r) => r.status === 'completed').length === 0}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-white hover:bg-stone-50 text-stone-700 border border-stone-300 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Plus className="w-3 h-3" />
+                        <FileDown className="w-3.5 h-3.5 text-stone-500" />
+                        <span>{lang === 'ar' ? 'تصدير كملف TXT' : 'Export TXT'}</span>
                       </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBulkResults([]);
+                        setBulkProgress({ current: 0, total: 0 });
+                      }}
+                      disabled={isBulkGenerating}
+                      className="text-[11px] font-bold text-stone-500 hover:text-rose-600 transition-colors px-2 py-1 cursor-pointer disabled:opacity-50"
+                    >
+                      {lang === 'ar' ? 'مسح القائمة' : 'Clear List'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Progress Bar when Generating */}
+                {isBulkGenerating && (
+                  <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-[#c29b40]/30 space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center justify-between text-xs font-bold text-stone-800">
+                      <span className="flex items-center gap-2">
+                        <RefreshCw className="w-3.5 h-3.5 text-[#c29b40] animate-spin" />
+                        <span>
+                          {lang === 'ar'
+                            ? `جاري توليد الأمر (${bulkProgress.current} من ${bulkProgress.total})...`
+                            : `Generating prompt (${bulkProgress.current} of ${bulkProgress.total})...`}
+                        </span>
+                      </span>
+                      <span className="font-mono text-[#916a24]">
+                        {Math.round((bulkProgress.current / Math.max(bulkProgress.total, 1)) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-stone-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#916a24] to-[#c29b40] transition-all duration-300"
+                        style={{
+                          width: `${Math.round((bulkProgress.current / Math.max(bulkProgress.total, 1)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {bulkResults.length === 0 && !isBulkGenerating && (
+                  <div className="py-14 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-[#c29b40] flex items-center justify-center mx-auto">
+                      <ListPlus className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-stone-700">
+                      {lang === 'ar' ? 'لوحة التوليد الجماعي للأوامر' : 'Bulk Generation Dashboard'}
+                    </h3>
+                    <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
+                      {lang === 'ar'
+                        ? 'أدخل قائمة مواضيع مفصولة بفواصل أو أسطر في النموذج الجانبي، ثم انقر على "بدء التوليد الجماعي" لتوليد حزمة أوامر هندسية متكاملة بضغطة زر واحدة.'
+                        : 'Enter a comma or newline-separated list of topics in the left form and click "Generate All Batch Prompts" to synthesize multiple prompts at once.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleLoadSampleBulkTopics}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-200/80 hover:bg-stone-300 text-stone-800 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#c29b40]" />
+                      <span>{lang === 'ar' ? 'تجربة مواضيع جاهزة' : 'Try sample topics'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Bulk Results List */}
+                {bulkResults.length > 0 && (
+                  <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+                    {bulkResults.map((item, idx) => {
+                      const isExpanded = bulkExpandedId === item.id || (!bulkExpandedId && idx === 0);
+                      return (
+                        <div
+                          key={item.id}
+                          className="rounded-xl border border-stone-200 bg-white shadow-2xs overflow-hidden transition-all"
+                        >
+                          {/* Card Header */}
+                          <div
+                            onClick={() => setBulkExpandedId(isExpanded ? null : item.id)}
+                            className="p-3 bg-stone-50/80 hover:bg-stone-100/80 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-5 h-5 rounded-full bg-[#c29b40]/20 text-[#916a24] text-[11px] font-black flex items-center justify-center shrink-0">
+                                {idx + 1}
+                              </span>
+                              <span className="text-xs font-bold text-stone-800 truncate">
+                                {item.topic}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Status badge */}
+                              {item.status === 'completed' && (
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
+                                    generationEngineMode === 'free'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : 'bg-amber-50 text-[#916a24] border-amber-200'
+                                  }`}>
+                                    {generationEngineMode === 'free' ? '⚡ 0 API' : '💎 Gemini'}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <Check className="w-3 h-3" />
+                                    <span>{lang === 'ar' ? 'جاهز' : 'Ready'}</span>
+                                  </span>
+                                </div>
+                              )}
+                              {item.status === 'generating' && (
+                                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>{lang === 'ar' ? 'جاري التوليد...' : 'Generating...'}</span>
+                                </span>
+                              )}
+                              {item.status === 'error' && (
+                                <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                                  {lang === 'ar' ? 'خطأ' : 'Error'}
+                                </span>
+                              )}
+                              {item.status === 'pending' && (
+                                <span className="text-[10px] font-bold text-stone-500 bg-stone-200/80 px-2 py-0.5 rounded-full">
+                                  {lang === 'ar' ? 'قيد الانتظار' : 'Pending'}
+                                </span>
+                              )}
+
+                              {/* Copy button */}
+                              {item.status === 'completed' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopySingleBulk(item.prompt, item.id);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-stone-200 hover:bg-[#c29b40] hover:text-stone-950 text-stone-700 transition-colors cursor-pointer"
+                                  title={lang === 'ar' ? 'نسخ هذا البرومبت' : 'Copy this prompt'}
+                                >
+                                  {bulkCopiedId === item.id ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-700" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              )}
+
+                              {/* Send to Playground / Tester button */}
+                              {item.status === 'completed' && onSendToTester && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSendToTester(item.prompt);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 transition-colors cursor-pointer"
+                                  title={lang === 'ar' ? 'تجربة في المختبر' : 'Test in Playground'}
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* Expand toggle */}
+                              <button
+                                type="button"
+                                className="p-1 text-stone-400 hover:text-stone-700 transition-colors"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Card Body */}
+                          {isExpanded && (
+                            <div className="p-3 border-t border-stone-100 text-xs text-stone-700 bg-white">
+                              {item.status === 'completed' ? (
+                                <div className="space-y-2">
+                                  <pre className="whitespace-pre-wrap font-sans text-xs bg-stone-50 p-3 rounded-lg border border-stone-200/70 max-h-60 overflow-y-auto leading-relaxed select-all">
+                                    {item.prompt}
+                                  </pre>
+                                  <div className="flex items-center justify-between text-[11px] text-stone-500 pt-1">
+                                    <span>
+                                      {lang === 'ar'
+                                        ? `الطول: ${item.prompt.length} حرف | الكلمات: ${item.prompt.split(/\s+/).filter(Boolean).length}`
+                                        : `Length: ${item.prompt.length} chars | Words: ${item.prompt.split(/\s+/).filter(Boolean).length}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopySingleBulk(item.prompt, item.id)}
+                                      className="font-bold text-[#916a24] hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                      <span>
+                                        {bulkCopiedId === item.id
+                                          ? (lang === 'ar' ? 'تم النسخ!' : 'Copied!')
+                                          : (lang === 'ar' ? 'نسخ البرومبت' : 'Copy prompt')}
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : item.status === 'generating' ? (
+                                <div className="py-4 flex items-center justify-center gap-2 text-stone-500 animate-pulse">
+                                  <RefreshCw className="w-4 h-4 animate-spin text-[#c29b40]" />
+                                  <span>{lang === 'ar' ? 'جاري الصياغة بواسطة الذكاء الاصطناعي...' : 'Synthesizing with AI...'}</span>
+                                </div>
+                              ) : item.status === 'error' ? (
+                                <div className="text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                                  <span className="font-bold">{lang === 'ar' ? 'خطأ:' : 'Error:'}</span> {item.error || 'فشل التوليد لهذا الموضوع'}
+                                </div>
+                              ) : (
+                                <div className="text-stone-400 italic py-2 text-center">
+                                  {lang === 'ar' ? 'في انتظار دوره في طابور المعالجة...' : 'Waiting in generation queue...'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4 border-b border-stone-200/60 pb-3">
+                  <div className="flex items-center gap-2 text-stone-700">
+                    <Cpu className="w-4 h-4 text-[#c29b40]" />
+                    <span className="text-xs font-bold tracking-wider">
+                      {lang === 'ar' ? '2. مخرجات جودة هندسة الأوامر الحالية' : '2. Engineered Output Workspace'}
+                    </span>
+                  </div>
+                  {saveNotification ? (
+                    <span className="text-[10px] font-black text-emerald-800 px-2.5 py-0.5 bg-emerald-100 rounded-full border border-emerald-300 animate-pulse">
+                      {saveNotification}
+                    </span>
+                  ) : currentResult ? (
+                    <span className="text-[10px] font-bold text-emerald-700 px-2 py-0.5 bg-emerald-100 rounded-full">
+                      {lang === 'ar' ? 'برومبت جاهز' : 'Output compiled'}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Loading Pulse Frame with AdSense Banner and Support Request Notice */}
+                {loading && (
+                  <div className="flex-1 flex flex-col items-center justify-center py-6 px-2 text-center space-y-4">
+                    
+                    {/* Top Spinner with Prominent "انتظر" Header */}
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="relative">
+                        <div className="w-14 h-14 rounded-full border-4 border-[#c29b40]/25 border-t-[#c29b40] animate-spin" />
+                        <Sparkles className="w-6 h-6 text-[#c29b40] absolute inset-0 m-auto animate-pulse" />
+                      </div>
+                      
+                      {/* Prominent "انتظر" Badge / Title */}
+                      <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-500/15 border border-[#c29b40]/35 text-[#916a24] dark:text-amber-400 font-black text-xs sm:text-sm shadow-xs animate-pulse">
+                        <span>⏳</span>
+                        <span>{lang === 'ar' ? 'انتظر... جاري تصميم وهندسة البرومبت' : 'Please wait... Engineering your prompt'}</span>
+                      </div>
+
+                      <p className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                        {lang === 'ar' ? 'جاري الصياغة الفلسفية للأمر بواسطة Gemini...' : 'Structuring rules, variable boundaries, and personas...'}
+                      </p>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 max-w-sm">
+                        {lang === 'ar' ? 'نقوم بكتابة الهياكل البرمجية والتعليقات والقيود المناسبة لتصغير الهلوسة.' : 'Refining target variables to prevent incorrect answers.'}
+                      </p>
+                    </div>
+
+                    {/* Support Request Banner - طلب الدعم بمشاهدة الإشهار */}
+                    <div className="w-full max-w-md mx-auto p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#c29b40]/15 to-amber-500/10 border border-[#c29b40]/40 shadow-xs text-center space-y-2 animate-in fade-in">
+                      <div className="flex items-center justify-center gap-1.5 text-xs font-black text-[#916a24] dark:text-amber-400">
+                        <Heart className="w-4 h-4 text-rose-500 fill-rose-500 animate-pulse" />
+                        <span>
+                          {lang === 'ar' 
+                            ? 'طلب دعم: مشاهدتك للإشهار تدعم استمرار المنصة مجاناً ❤️' 
+                            : 'Support Us: Viewing this ad keeps ArabPrompt 100% free ❤️'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed font-medium">
+                        {lang === 'ar' 
+                          ? 'منصة «عرب برومبت» مجانية تماماً وبدون اشتراكات إجبارية. دعمك البسيط بمشاهدة هذا الإعلان أثناء إعداد وهندسة البرومبت يساعدنا على تغطية تكاليف الاستضافة ونماذج الذكاء الاصطناعي.' 
+                          : 'ArabPrompt is completely free. Your kind support by watching this advertisement while your prompt is engineered helps cover our server and AI model costs.'}
+                      </p>
+                      <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 dark:text-amber-200 bg-amber-200/60 dark:bg-amber-950/60 px-3 py-1 rounded-full border border-amber-400/40">
+                        <span>👁️</span>
+                        <span>{lang === 'ar' ? 'شكراً لمشاهدتك ودعمك الكريم!' : 'Thank you for watching and supporting!'}</span>
+                      </div>
+                    </div>
+
+                    {/* Google AdSense Banner displayed directly during prompt generation */}
+                    <div className="w-full max-w-md mx-auto">
+                      <AdSenseBanner
+                        client="ca-pub-3312377428939400"
+                        lang={lang}
+                        showPlaceholderBadge={true}
+                        minHeight={110}
+                      />
+                    </div>
+
+                    {/* Progress Bar indicator */}
+                    <div className="w-48 h-1.5 bg-stone-200 dark:bg-stone-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-400 rounded-full animate-pulse w-3/4" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message Box */}
+                {errorMsg && (
+                  <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 rounded-2xl p-4 text-xs font-medium flex flex-col gap-3 mb-4 font-sans shadow-sm">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-bold">{lang === 'ar' ? 'تنبيه الاستخدام أو الحصة:' : 'Platform Notice:'}</span> {errorMsg}
+                      </div>
+                    </div>
+                    {(errorMsg.includes('مدفوعة') || errorMsg.includes('ترقية') || errorMsg.includes('حصتك') || errorMsg.includes('quota') || errorMsg.includes('upgrade') || errorMsg.includes('subscribe')) && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-200/60 dark:border-rose-900/40">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+                          }}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:opacity-95 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Crown className="w-3.5 h-3.5" />
+                          <span>{lang === 'ar' ? 'الترقية الفورية الآن والدفع ⚡' : 'Upgrade & Go to Payment ⚡'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'lite', billingCycle: 'annual' } }));
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 font-bold text-xs hover:bg-stone-50 cursor-pointer"
+                        >
+                          <span>{lang === 'ar' ? 'باقة Lite المخفضة ($3.50/شهر)' : 'Starter Lite ($3.50/mo)'}</span>
+                        </button>
+                      </div>
                     )}
                   </div>
-                </div>
-              </div>
+                )}
 
-              {/* Polish adjustments Actions */}
-              <div className="mt-4 pt-3 border-t border-stone-200/60 flex flex-col md:flex-row gap-3 items-stretch md:items-center md:justify-between">
-                
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    id="refine-prompt-btn"
-                    onClick={handleRefine}
-                    disabled={loading}
-                    className="px-3.5 py-2.5 sm:py-1.5 text-xs font-bold rounded-lg border border-[#c29b40]/30 hover:border-[#c29b40] text-stone-800 hover:text-[#916a24] bg-white transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-                    <span>{lang === 'ar' ? 'تلميع وضبط إضافي' : 'Auto Polish'}</span>
-                  </button>
+                {/* Empty fallback screen */}
+                {!loading && !currentResult && !errorMsg && (
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 text-stone-400 text-center">
+                    <Sparkles className="w-10 h-10 text-stone-300 mb-3" />
+                    <p className="text-xs font-bold text-stone-600">
+                      {lang === 'ar' ? 'بانتظار الصياغة والتوليد المباشر' : 'Your engineered prompt appears here'}
+                    </p>
+                    <p className="text-[11px] text-stone-400 max-w-xs mt-1">
+                      {lang === 'ar'
+                        ? 'يرجى ملء تفاصيل الفكرة في القائمة الجانبية ثم النقر على "توليد" ليظهر لك الكود المحسن للنسخ المباشر.'
+                        : 'Specify an idea or a prompt draft in the left configurations panel, then click generating.'}
+                    </p>
+                  </div>
+                )}
 
-                  <button
-                    id="translate-prompt-btn"
-                    onClick={handleTranslateToEnglish}
-                    disabled={isTranslating}
-                    className="px-3.5 py-2.5 sm:py-1.5 text-xs font-bold rounded-lg border border-[#c29b40]/30 hover:border-[#c29b40] text-stone-800 hover:text-[#916a24] bg-white transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto cursor-pointer"
-                  >
-                    <Globe className="w-3.5 h-3.5 text-stone-500" />
-                    <span>{lang === 'ar' ? 'تعريب فوري (Ar -> En)' : 'Optimize code to English version'}</span>
-                  </button>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {/* Share to AI Tools Button */}
-                  <button
-                    id="share-ai-prompt-btn"
-                    type="button"
-                    onClick={() => setIsShareAiModalOpen(true)}
-                    className="px-3.5 py-2.5 font-bold text-xs text-white bg-gradient-to-r from-[#916a24] via-[#c29b40] to-[#b38d35] hover:opacity-95 rounded-lg transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto cursor-pointer shadow-xs border border-[#b38d35]"
-                    title={lang === 'ar' ? 'مشاركة وفتح البرومبت في جيمني، شات جي بي تي، كلود...' : 'Share to Gemini, ChatGPT, Claude...'}
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span>{lang === 'ar' ? 'مشاركة مع أدوات الذكاء' : 'Share to AI'}</span>
-                  </button>
-
-                  <button
-                    id="copy-prompt-btn"
-                    onClick={handleCopy}
-                    className="px-3.5 py-2.5 font-bold text-xs text-stone-700 bg-stone-200 hover:bg-stone-300 rounded-lg transition-all flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-700" />
-                        <span className="text-emerald-700">تم النسخ!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>نسخ البرومبت</span>
-                      </>
+                {/* Render result text */}
+                {!loading && currentResult && (
+                  <div className="flex-1 flex flex-col justify-between">
+                    
+                    {/* Visual Reference Integration Indicator */}
+                    {visualRef && autoEmbedVisualDescription && (
+                      <div className="mb-3 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/15 via-[#c29b40]/20 to-amber-500/15 border border-[#c29b40]/30 text-[11px] text-[#916a24] dark:text-amber-400 font-bold flex items-center justify-between gap-2 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <Camera className="w-4 h-4 text-[#c29b40] shrink-0" />
+                          <span>
+                            {lang === 'ar' 
+                              ? 'تم تضمين الوصف البصري والخصائص المستخلصة من صورتك المرجعية في هذا البرومبت' 
+                              : 'Visual description & DNA from reference image embedded in this prompt'}
+                          </span>
+                        </div>
+                        {visualRef.attributes?.medium && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/80 dark:bg-stone-850 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                            {visualRef.attributes.medium}
+                          </span>
+                        )}
+                      </div>
                     )}
-                  </button>
 
-                  <button
-                    id="manual-save-prompt-btn"
-                    onClick={handleManualSave}
-                    className="px-3.5 py-2.5 font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer"
-                    title={lang === 'ar' ? 'حفظ في السجل (Ctrl+S)' : 'Save to History (Ctrl+S)'}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{lang === 'ar' ? 'حفظ (Ctrl+S)' : 'Save (Ctrl+S)'}</span>
-                  </button>
-                </div>
+                    {/* 🏷️ Engine Mode Attribution Banner (Free 0 API from Library vs Paid Cloud Gemini AI) */}
+                    <div className={`mb-3 p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold transition-all shadow-2xs ${
+                      lastGeneratedMode === 'free'
+                        ? 'bg-gradient-to-r from-emerald-50 to-teal-50/80 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                        : 'bg-gradient-to-r from-amber-50 to-yellow-50/80 dark:from-amber-950/30 dark:to-stone-900 border-[#c29b40]/40 text-[#916a24] dark:text-amber-300'
+                    }`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-xl shrink-0">{lastGeneratedMode === 'free' ? '⚡' : '💎'}</span>
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="font-black text-xs sm:text-sm truncate">
+                            {lastGeneratedMode === 'free'
+                              ? (lang === 'ar' ? 'تم التوليد عبر النمط المجاني (100% من مكتبة الموقع • 0 API)' : 'Synthesized via Free Mode (100% Local Library • 0 API)')
+                              : (lang === 'ar' ? 'تم التوليد عبر النمط المدفوع الذكي (Google Gemini Pro AI)' : 'Generated via Paid Pro Mode (Google Gemini Pro AI)')}
+                          </span>
+                          <span className="text-[11px] font-normal text-stone-600 dark:text-stone-400 truncate">
+                            {lastGeneratedMode === 'free'
+                              ? (lang === 'ar' ? 'بدون استدعاء Gemini أو استهلاك رصيد • تم دمج المعايير الهندسية والأطر التخصصية محلياً' : 'Zero API quota consumed • Domain engineering rules compiled from local library')
+                              : (lang === 'ar' ? 'معالجة سحابية عميقة بالذكاء الاصطناعي للمشتركين' : 'Deep cognitive cloud generation for active subscribers')}
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full shrink-0 border uppercase tracking-wider ${
+                        lastGeneratedMode === 'free'
+                          ? 'bg-emerald-100 text-emerald-950 border-emerald-300 dark:bg-emerald-900/60 dark:text-emerald-200'
+                          : 'bg-amber-100 text-[#916a24] border-amber-300 dark:bg-amber-900/60 dark:text-amber-200'
+                      }`}>
+                        {lastGeneratedMode === 'free'
+                          ? (lang === 'ar' ? '100% مجاني ومحلي' : 'Free 0 API')
+                          : (lang === 'ar' ? 'سحابي مدفوع Pro' : 'Paid Cloud Pro')}
+                      </span>
+                    </div>
 
+                    {/* Real-time Prompt Quality Score Diagnostics */}
+                    <PromptQualityScore promptText={currentResult} lang={lang} />
+
+                    {/* Output Scroll area */}
+                    <VariableHighlighterEditor
+                      value={currentResult}
+                      onChange={setCurrentResult}
+                      dir={language === 'ar' ? 'rtl' : 'ltr'}
+                      lang={lang}
+                      placeholder={lang === 'ar' ? 'هنا سيظهر البرومبت الهندسي...' : 'System prompt appears here...'}
+                    />
+                    <p className="text-[10px] text-stone-500 mt-2 text-right rtl:text-right">
+                      {lang === 'ar' 
+                        ? '💡 يمكنك تعديل البرومبت مباشرة! المتغيرات المحاطة بـ [ ] سيتم إبرازها تلقائياً بوضوح.' 
+                        : '💡 Click inside to edit the prompt! Variables enclosed in [ ] are automatically highlighted.'
+                      }
+                    </p>
+
+                    {/* AI Auto-Tagging & Taxonomy Manager */}
+                    <div className="mt-3.5 p-3 rounded-xl bg-stone-100/90 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-stone-700 dark:text-stone-300 text-xs font-bold">
+                          <Tag className="w-3.5 h-3.5 text-[#c29b40]" />
+                          <span>{lang === 'ar' ? 'الوسوم التنظيمية الذكية (Smart Tags):' : 'Organizational Tags:'}</span>
+                          {selectedTags.length > 0 && (
+                            <span className="text-[10px] font-mono bg-[#c29b40]/20 text-[#916a24] dark:text-amber-300 px-1.5 py-0.5 rounded-full font-bold">
+                              {selectedTags.length}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={() => fetchSuggestedTags(currentResult || concept, category)}
+                          disabled={isSuggestingTags}
+                          className="text-[11px] font-bold text-[#916a24] hover:text-[#78551b] dark:text-amber-400 flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-[#c29b40]/10 transition-all cursor-pointer"
+                          title={lang === 'ar' ? 'إعادة تحليل واقتراح وسوم بالذكاء الاصطناعي' : 'Re-analyze and suggest tags with Gemini'}
+                        >
+                          <Sparkles className={`w-3 h-3 ${isSuggestingTags ? 'animate-spin text-[#c29b40]' : 'text-[#c29b40]'}`} />
+                          <span>{isSuggestingTags ? (lang === 'ar' ? 'جاري التحليل...' : 'Analyzing...') : (lang === 'ar' ? 'اقتراح وسوم AI' : 'Auto-Suggest Tags')}</span>
+                        </button>
+                      </div>
+
+                      {/* Tag pills list */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {Array.from(new Set([...selectedTags, ...suggestedTags])).map((tag) => {
+                          const isSelected = selectedTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => toggleTag(tag)}
+                              className={`text-xs px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-[#c29b40] text-stone-950 border-[#b38d35] shadow-xs'
+                                  : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-300 dark:border-stone-700 hover:border-stone-400 hover:bg-stone-50'
+                              }`}
+                            >
+                              {isSelected ? <Check className="w-3 h-3 text-stone-950" /> : <Hash className="w-3 h-3 text-stone-400" />}
+                              <span>{tag}</span>
+                              {isSelected && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeTag(tag);
+                                  }}
+                                  className="hover:text-rose-700 ml-0.5 cursor-pointer"
+                                  title={lang === 'ar' ? 'إزالة' : 'Remove'}
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+
+                        {/* Custom Tag Input */}
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={customTagInput}
+                            onChange={(e) => setCustomTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddCustomTag();
+                              }
+                            }}
+                            placeholder={lang === 'ar' ? '+ أضف وسماً...' : '+ Add tag...'}
+                            className="text-[11px] px-2 py-1 rounded-lg border border-dashed border-stone-300 dark:border-stone-700 bg-white/80 dark:bg-stone-800/80 focus:bg-white focus:outline-none focus:border-[#c29b40] w-24 text-stone-700 dark:text-stone-200 placeholder-stone-400"
+                          />
+                          {customTagInput.trim() && (
+                            <button
+                              type="button"
+                              onClick={handleAddCustomTag}
+                              className="p-1 rounded-md bg-[#c29b40] text-stone-950 text-xs font-bold hover:bg-[#a6802f] transition-all cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Polish adjustments Actions */}
+                    <div className="mt-4 pt-3 border-t border-stone-200/60 flex flex-col md:flex-row gap-3 items-stretch md:items-center md:justify-between">
+                      
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          id="refine-prompt-btn"
+                          onClick={handleRefine}
+                          disabled={loading}
+                          className="px-3.5 py-2.5 sm:py-1.5 text-xs font-bold rounded-lg border border-[#c29b40]/30 hover:border-[#c29b40] text-stone-800 hover:text-[#916a24] bg-white transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                          <span>{lang === 'ar' ? 'تلميع وضبط إضافي' : 'Auto Polish'}</span>
+                        </button>
+
+                        <button
+                          id="translate-prompt-btn"
+                          onClick={handleTranslateToEnglish}
+                          disabled={isTranslating}
+                          className="px-3.5 py-2.5 sm:py-1.5 text-xs font-bold rounded-lg border border-[#c29b40]/30 hover:border-[#c29b40] text-stone-800 hover:text-[#916a24] bg-white transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto cursor-pointer"
+                        >
+                          <Globe className="w-3.5 h-3.5 text-stone-500" />
+                          <span>{lang === 'ar' ? 'تعريب فوري (Ar -> En)' : 'Optimize code to English version'}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        {/* Share to AI Tools Button */}
+                        <button
+                          id="share-ai-prompt-btn"
+                          type="button"
+                          onClick={() => setIsShareAiModalOpen(true)}
+                          className="px-3.5 py-2.5 font-bold text-xs text-white bg-gradient-to-r from-[#916a24] via-[#c29b40] to-[#b38d35] hover:opacity-95 rounded-lg transition-all flex items-center justify-center gap-1.5 w-full sm:w-auto cursor-pointer shadow-xs border border-[#b38d35]"
+                          title={lang === 'ar' ? 'مشاركة وفتح البرومبت في جيمني، شات جي بي تي، كلود...' : 'Share to Gemini, ChatGPT, Claude...'}
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>{lang === 'ar' ? 'مشاركة مع أدوات الذكاء' : 'Share to AI'}</span>
+                        </button>
+
+                        <button
+                          id="copy-prompt-btn"
+                          onClick={handleCopy}
+                          className="px-3.5 py-2.5 font-bold text-xs text-stone-700 bg-stone-200 hover:bg-stone-300 rounded-lg transition-all flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-700" />
+                              <span className="text-emerald-700">تم النسخ!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>نسخ البرومبت</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          id="manual-save-prompt-btn"
+                          onClick={handleManualSave}
+                          className="px-3.5 py-2.5 font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer"
+                          title={lang === 'ar' ? 'حفظ في السجل (Ctrl+S)' : 'Save to History (Ctrl+S)'}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{lang === 'ar' ? 'حفظ (Ctrl+S)' : 'Save (Ctrl+S)'}</span>
+                        </button>
+                      </div>
+
+                    </div>
+
+                  </div>
+                )}
               </div>
-
             </div>
           )}
 
@@ -1198,6 +2801,43 @@ function PromptBuilder({ lang, onSendToTester, onNavigateToReverse, onNavigateTo
         model={model}
         tone={tone}
       />
+
+      {/* Visual Reference Zoom Preview Modal */}
+      {previewModalImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setPreviewModalImage(null)}
+        >
+          <div
+            className="relative max-w-3xl max-h-[85vh] bg-white dark:bg-stone-900 p-2.5 rounded-3xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-[#c29b40]" />
+                <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                  {lang === 'ar' ? 'معاينة الصورة المرجعية' : 'Reference Image Preview'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="p-1.5 rounded-xl text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-2 flex items-center justify-center">
+              <img
+                src={previewModalImage}
+                alt="Full reference preview"
+                className="max-h-[72vh] max-w-full rounded-2xl object-contain shadow-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

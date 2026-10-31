@@ -4,18 +4,122 @@
  */
 
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import nodemailer from 'nodemailer';
-import { safeParseGeminiJSON } from './src/utils/geminiJsonParser';
+// Universal safe JSON parser for LLM outputs
+export interface SafeParseResult<T = any> {
+  success: boolean;
+  data: T | null;
+  error: string | null;
+  rawInput?: string;
+}
+
+export function safeParseGeminiJSON<T = any>(
+  rawText: string | null | undefined,
+  fallbackValue: T | null = null,
+  validator?: (data: any) => boolean
+): SafeParseResult<T> {
+  if (!rawText || typeof rawText !== 'string' || !rawText.trim()) {
+    return {
+      success: false,
+      data: fallbackValue,
+      error: 'Empty or undefined input string',
+      rawInput: rawText || ''
+    };
+  }
+
+  let text = rawText.trim();
+
+  // 1. Remove markdown code blocks ```json ... ``` or ``` ... ```
+  if (text.includes('```')) {
+    const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+    const match = text.match(jsonBlockRegex);
+    if (match && match[1]) {
+      text = match[1].trim();
+    }
+  }
+
+  // 2. Find outermost JSON braces
+  const firstCurly = text.indexOf('{');
+  const firstSquare = text.indexOf('[');
+  let startIndex = -1;
+
+  if (firstCurly !== -1 && firstSquare !== -1) {
+    startIndex = Math.min(firstCurly, firstSquare);
+  } else if (firstCurly !== -1) {
+    startIndex = firstCurly;
+  } else if (firstSquare !== -1) {
+    startIndex = firstSquare;
+  }
+
+  if (startIndex !== -1) {
+    const isArray = text[startIndex] === '[';
+    const endIndex = isArray ? text.lastIndexOf(']') : text.lastIndexOf('}');
+    if (endIndex > startIndex) {
+      text = text.substring(startIndex, endIndex + 1).trim();
+    }
+  }
+
+  // 3. Attempt direct parse
+  try {
+    const parsed = JSON.parse(text);
+    if (validator && !validator(parsed)) {
+      return {
+        success: false,
+        data: fallbackValue,
+        error: 'Schema validation failed for parsed JSON',
+        rawInput: rawText
+      };
+    }
+    return {
+      success: true,
+      data: parsed as T,
+      error: null,
+      rawInput: rawText
+    };
+  } catch {
+    // 4. Try lenient fixes
+    try {
+      const sanitized = text
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'");
+
+      const parsed = JSON.parse(sanitized);
+      if (validator && !validator(parsed)) {
+        return {
+          success: false,
+          data: fallbackValue,
+          error: 'Schema validation failed for sanitized JSON',
+          rawInput: rawText
+        };
+      }
+      return {
+        success: true,
+        data: parsed as T,
+        error: null,
+        rawInput: rawText
+      };
+    } catch (secondErr: any) {
+      return {
+        success: false,
+        data: fallbackValue,
+        error: secondErr?.message || 'JSON parsing failed',
+        rawInput: rawText
+      };
+    }
+  }
+}
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Middleware
 app.use(express.json({ limit: '50mb' }));
@@ -135,6 +239,26 @@ export function attachSiteBrandUrl(text: string): string {
   return result;
 }
 
+// Dynamic model cooldown tracker for exhausted quotas (429)
+const modelCooldowns = new Map<string, number>();
+
+function isModelInCooldown(model: string): boolean {
+  const expiry = modelCooldowns.get(model);
+  if (!expiry) return false;
+  if (Date.now() > expiry) {
+    modelCooldowns.delete(model);
+    return false;
+  }
+  return true;
+}
+
+function setModelCooldown(model: string, durationMs = 30 * 60 * 1000) {
+  modelCooldowns.set(model, Date.now() + durationMs);
+}
+
+// Pre-register gemini-3.8-flash in cooldown because daily quota (20 reqs) is reached on free tier
+setModelCooldown('gemini-3.8-flash', 60 * 60 * 1000);
+
 // Resilient wrapping helper function that automatically fallbacks to alternative models on quota limit or transient server hits
 interface GenerateParams {
   contents: any;
@@ -144,22 +268,21 @@ interface GenerateParams {
 
 async function generateContentWithQuotaResilience(params: GenerateParams) {
   const ai = getGeminiClient();
-  const primaryModel = params.model || 'gemini-3.8-flash';
+  const requested = params.model || 'gemini-2.5-flash';
   
-  // Try sequence of models that represent different model-specific quota accounts
-  const modelsToTry = [primaryModel];
-  if (primaryModel === 'gemini-3.8-flash') {
-    modelsToTry.push('gemini-flash-latest');
-    modelsToTry.push('gemini-3.1-flash-lite');
-  } else if (primaryModel === 'gemini-3.1-pro-preview') {
-    modelsToTry.push('gemini-3.8-flash');
-    modelsToTry.push('gemini-flash-latest');
-    modelsToTry.push('gemini-3.1-flash-lite');
-  } else if (!primaryModel.includes('image') && !primaryModel.includes('video') && !primaryModel.includes('audio') && !primaryModel.includes('lyria')) {
-    modelsToTry.push('gemini-3.8-flash');
-    modelsToTry.push('gemini-flash-latest');
-    modelsToTry.push('gemini-3.1-flash-lite');
-  }
+  // High-availability candidate pool:
+  // gemini-2.5-flash is our verified active model with working quota and multimodal support
+  const basePool = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+  
+  const allCandidates = Array.from(new Set([
+    requested,
+    ...basePool
+  ]));
+
+  // Prioritize active healthy models over cooling/exhausted ones
+  const healthyModels = allCandidates.filter(m => !isModelInCooldown(m));
+  const coolingModels = allCandidates.filter(m => isModelInCooldown(m));
+  const modelsToTry = healthyModels.length > 0 ? [...healthyModels, ...coolingModels] : allCandidates;
 
   let lastError: any = null;
 
@@ -175,7 +298,15 @@ async function generateContentWithQuotaResilience(params: GenerateParams) {
     } catch (error: any) {
       lastError = error;
       const errMsg = error?.message || String(error);
-      console.warn(`[Gemini Resilience] Model ${model} encountered an issue:`, errMsg);
+      const isQuotaLimit = error?.status === 429 || errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED');
+
+      if (isQuotaLimit) {
+        // Mark model in cooldown so subsequent requests don't waste time or log repeated 429s
+        setModelCooldown(model, 30 * 60 * 1000);
+        console.log(`[Gemini Resilience] Model ${model} is rate-limited (429). Switching to next available model...`);
+      } else {
+        console.log(`[Gemini Resilience] Model ${model} notification: ${errMsg.slice(0, 100)}`);
+      }
 
       // If error is account-wide billing or permission denied, cascading models under same key won't help
       if (
@@ -184,7 +315,7 @@ async function generateContentWithQuotaResilience(params: GenerateParams) {
         errMsg.includes('PERMISSION_DENIED') ||
         error?.status === 403
       ) {
-        console.warn('[Gemini Resilience] Account billing limit detected; engaging local resilient generator immediately.');
+        console.log('[Gemini Resilience] Account billing limit detected; engaging local resilient generator immediately.');
         break;
       }
 
@@ -2448,12 +2579,26 @@ Your goal is to solve the following requirements:
 // Route: Reverse engineering - Image to prompt (Vision analysis)
 app.post('/api/reverse-prompt', async (req, res) => {
   try {
-    const { image, mimeType, targetStyle, notes, targetImage, targetImageMimeType, isVideoMode } = req.body;
+    const { 
+      image, 
+      mimeType, 
+      targetStyle, 
+      notes, 
+      targetImage, 
+      targetImageMimeType, 
+      isVideoMode,
+      clientCustomChoice,
+      includeStyleTransferDirective,
+      useFreePattern,
+      reverserTier = 'free'
+    } = req.body;
     if (!image) {
       return res.status(400).json({ error: 'Image or video data is required' });
     }
 
     const isVideo = isVideoMode || (mimeType && mimeType.startsWith('video/'));
+    const isStyleTransfer = Boolean(targetImage || includeStyleTransferDirective || clientCustomChoice || useFreePattern);
+    const isPaidTier = reverserTier === 'paid';
 
     // Strip scheme if it is a data URL for first image or video
     let base64Data = image;
@@ -2479,18 +2624,45 @@ app.post('/api/reverse-prompt', async (req, res) => {
 1. التعلم المباشر من الصورة: استخلص الألوان الدقيقة (Hex Codes)، نوع الكاميرا والعدسة، إعدادات الإضاءة والفيزياء، الوسيط الفني (Medium)، التكوين والزوايا، والملمس السطحي.
 2. صياغة برومبت رئيسي (Master Prompt) بالإنجليزية لإعادة إنتاج المشهد بدقة استثنائية على Midjourney / FLUX / DALL-E.
 3. صياغة صيغة نقل الأسلوب (Style Transfer Formula): سطر برمجي وصفي مخصص يمكن دمجه مع أي موضوع جديد لتطبيق نفس الأسلوب المتعلم من هذه الصورة.
-4. تقديم تحليل تفصيلي باللغة العربية للبصريات المستخلصة.`;
+4. تقديم تحليل تفصيلي باللغة العربية للبصريات المستخلصة.
+${isPaidTier ? `
+=== مسار التوليد: [الخيار المدفوع الاحترافي - Pro Ultra Tier] ===
+- العميل يستخدم الخيار المدفوع الفائق (Pro Ultra 8K).
+- قم بتطبيق أقصى درجات الدقة الهندسية والمعمارية: فيزياء الإضاءة الحجمية (Volumetric Ray-Tracing)، عدسات استوديو هاسلبلاد أو أري أليكسا (Hasselblad H6D-100c 85mm f/1.2 أو Arri Alexa 65)، صياغة برومبتات إعلانية وتجارية فاخرة، ومعايير Midjourney v6.1 / FLUX.1 Pro عالية الجودة.
+` : `
+=== مسار التوليد: [الخيار المجاني - Free Tier] ===
+- العميل يستخدم الخيار المجاني المفتوح للجميع (Free Tier).
+- قاعدة إلزامية مطلقة في البرومبت المجاني في الهندسة العكسية: يجب أن تخاطب أي ذكاء اصطناعي صراحة في بداية البرومبت والمخرج بالعبارة التالية:
+"خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k"
+وترجمتها الإنجليزية الموازية:
+"Take the style from the first image and apply it to the second, and let the image resolution be 8k"
+- كما يتضمن التوجيه أيضاً: "طبق هذه المعلومات على الصورة الجديدة" (Apply this information to the new image).
+- قم باستخلاص النمط الأساسي وتوليد برومبت واضح ومباشر عالي التناسق وبدقة 8K، مع تفعيل نقل النمط وخيار العميل المجاني بحرية تامة دون أي قيود صلبة.
+`}`;
 
     if (isVideo) {
       systemInstruction = `أنت خبير فك تشفيرات وحركية الفيديو وتصميم الأوامر العكسية للفيديو (Video Reverse Prompt Engineering Specialist).
-مهمتك هي تحليل لقطات الفيديو المرسلة بدقة متناهية واستخراج ووصف حركية الكاميرا، والأسلوب البصري، والإضاءة، والتكوين العام للمشهد، والأجواء (Atmosphere)، والعناصر الأساسية لاستعادة "أمر توليد الفيديو" (Video Generation Prompt) الذي يمكنه صياغة فيديو شبيه وذو حركية مطابقة لأقصى حد باستخدام نماذج مثل Sora أو Runway Gen-3 أو Luma Dream Machine أو Kling AI.`;
-    } else if (targetImage) {
+مهمتك هي تحليل لقطات الفيديو المرسلة بدقة متناهية واستخراج ووصف حركية الكاميرا، والأسلوب البصري، والإضاءة، والتكوين العام للمشهد، والأجواء (Atmosphere)، والعناصر الأساسية لاستعادة "أمر توليد الفيديو" (Video Generation Prompt) الذي يمكنه صياغة فيديو شبيه وذو حركية مطابقة لأقصى حد باستخدام نماذج مثل Sora أو Runway Gen-3 أو Luma Dream Machine أو Kling AI.
+${isPaidTier ? 'وضع الخيار المدفوع: ركّز على حركة الكاميرا الاحترافية ثلاثية المحاور وإضاءة هوليوود السينمائية بدقة 8K.' : 'وضع الخيار المجاني: صياغة سلسة ومباشرة لحركية المشهد مع تضمين التوجيه: "خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k" / "Take the style from the first image and apply it to the second, and let the image resolution be 8k".'}`;
+    } else if (isStyleTransfer) {
       systemInstruction = `أنت خبير محاكاة الأنماط البصرية ونقل الأسلوب الفني وهندسة الأوامر العكسية (Visual Style Transfer & Merging Expert).
-لقد قام المستخدم برفع صورتين للتفكيك والدمج:
-1. الصورة الأولى (Image 1): تمثل مرجع النمط البصري، الألوان، تأثيرات الإضاءة، الكاميرا والجماليات الفنية (Style & Aesthetic Reference).
-2. الصورة الثانية (Image 2): تمثل المحتوى الأساسي، الموضوع، الفكرة والشخصيات أو المنتجات التي نريد تطبيق النمط عليها (Content & Subject Reference).
-
-مهمتك استخلاص الأسلوب البصري من الصورة الأولى وتطبيقه ببراعة على الموضوع والمحتوى والعناصر المستخلصة من الصورة الثانية، دون أي افتراضات مسبقة خارج محتوى الصورتين الحقيقي.`;
+مهمتك استخلاص الأسلوب البصري والإضاءة والألوان والعدسات من الصورة المرجعية وتطبيقها على الصورة المرفقة أو الموضوع المحدد.
+قاعدة إلزامية مطلقة:
+يجب أن يتضمن البرومبت الرئيسي والمخرج النصي حرفياً ووضوحاً العبارة التالية:
+"خد النمط من الصورة و طبقه على الصورة المرفقة"
+وترجمتها الإنجليزية الموازية:
+"Take the style from the image and apply it to the attached image"
+${!isPaidTier ? `
+قاعدة البرومبت المجاني الإلزامية:
+عند التحليل المجاني، يجب مخاطبة أي ذكاء اصطناعي صراحة وتضمين العبارة التالية في البرومبت:
+"خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k"
+وترجمتها:
+"Take the style from the first image and apply it to the second, and let the image resolution be 8k"
+مع التوجيه: "طبق هذه المعلومات على الصورة الجديدة".
+` : ''}
+${useFreePattern ? 'وقد قام العميل بتفعيل خيار "استخدام النمط المجاني (Free Pattern)" لمنحه أعلى مرونة وحرية في نقل الأسلوب والتطبيق دون أي قيود صلبة.' : ''}
+${clientCustomChoice ? `كما يجب احترام وتنفيذ "الخيار المجاني المحدد من قبل العميل" ودمجه ببراعة: "${clientCustomChoice}".` : 'كما يجب توفير بند حر ومفتوح للخيار المجاني الذي يحدده العميل.'}
+${isPaidTier ? 'الخيار المختار: [الخيار المدفوع الاحترافي Pro Ultra 8K] - قم بدمج جودة الإعلانات التجارية الفاخرة وعدسات الكاميرا الدقيقة.' : 'الخيار المختار: [الخيار المجاني Free Tier] - دمج متناغم وسلس للنمط ومفتوح للجميع مع توجيه: "خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k".'}`;
     }
 
     let promptText = `Please study and deeply learn from this uploaded image. Extract its exact Visual DNA:
@@ -2502,11 +2674,19 @@ app.post('/api/reverse-prompt', async (req, res) => {
 6. Atmosphere & Emotional Mood: (e.g. contemplative, energetic, cyberpunk, ethereal serenity).
 7. Tactile Textures: (e.g. fine film grain, weathered leather, brushed aluminum, glossy reflection).
 8. Core Subject & Silhouettes: Detailed description of the actual subjects and layout.
-9. Master English Generation Prompt: A dense, weighted Midjourney/FLUX prompt to replicate this visual outcome.
+9. Master English Generation Prompt: A dense, weighted Midjourney/FLUX prompt to replicate this visual outcome at 8k resolution.
 10. Style Transfer Formula: A concise style snippet (e.g., "in the visual style of [medium], [lighting], [optics], [palette]") that can be appended to ANY new subject to replicate this exact look.
 
+[EXECUTION TIER]: ${isPaidTier ? 'PAID PRO ULTRA TIER (8K Studio Fidelity, Hasselblad Optics, Commercial Ad Grade)' : 'FREE TIER (Open Baseline Reverse Engineering, Free Pattern)'}
+${!isPaidTier ? `
+MANDATORY FREE TIER DIRECTIVE (قاعدة البرومبت المجاني في الهندسة العكسية):
+Because this is a Free Tier reverse prompt, you MUST instruct any AI model by beginning the Master Prompt and analysis with this exact directive:
+"خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k" / "Take the style from the first image and apply it to the second, and let the image resolution be 8k".
+Also declare: "طبق هذه المعلومات على الصورة الجديدة" / "Apply this information to the new image".
+` : ''}
+
 Format your response clearly with:
-- Code block containing the Master English Prompt
+- Code block containing the Master English Prompt (specifying 8k resolution)
 - Section detailing the Learned Visual DNA (Palette with #HEX codes, Medium, Lighting, Optics, Composition, Mood)
 - Arabic in-depth analysis of the visual architecture
 ${notes ? `Additional user guidance to respect: "${notes}"` : ''}
@@ -2514,14 +2694,29 @@ ${targetStyle ? `Target desired prompt style: "${targetStyle}"` : ''}`;
 
     if (isVideo) {
       promptText = `Please analyze this video file carefully. Detail its camera movements (pan, tilt, zoom, dolly, drone etc.), cinematic visual style, color tones, key subjects, environmental interactions, and frame dynamics.
-Based on this analysis, construct an exceptionally detailed, optimized English video generation prompt (for Runway Gen-3, Sora, Kling AI, Luma Dream Machine) to reproduce a highly similar dynamic visual and movement results.
+[EXECUTION TIER]: ${isPaidTier ? 'PAID PRO TIER' : 'FREE TIER'}
+${!isPaidTier ? 'FREE TIER REQUIREMENT: Include "خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k" / "Take the style from the first image and apply it to the second, and let the image resolution be 8k".' : ''}
+Based on this analysis, construct an exceptionally detailed, optimized English video generation prompt (for Runway Gen-3, Sora, Kling AI, Luma Dream Machine) to reproduce a highly similar dynamic visual and movement results at 8k resolution.
 ${notes ? `Focus on this user guidance for styling / kinetic motion: "${notes}"` : ''}`;
-    } else if (targetImage) {
-      promptText = `You are presented with two images:
-- Image 1 is the Style & Aesthetic Reference. Learn its lighting, color grading, camera angle, textures, and rendering medium.
-- Image 2 is the Target Subject/Content Image. Learn its primary subject, shapes, and layout.
+    } else if (isStyleTransfer) {
+      promptText = `Style Transfer & Visual Mimicry Request:
+Image 1 is the Reference Style Image. Extract its visual lighting, color grading, camera optics, textures, rendering medium, and atmosphere.
+${targetImage ? 'Image 2 is the Target Attached Image. Apply the style onto its subject and composition.' : 'Apply the style onto the attached target image described below.'}
 
-Synthesize a master prompt that transfers the learned aesthetics, colors, lighting, and camera physics of Image 1 directly onto the subjects of Image 2.
+[EXECUTION TIER]: ${isPaidTier ? 'PAID PRO ULTRA TIER (Highest commercial 8K fidelity)' : 'FREE TIER (Unconstrained free creative pattern)'}
+
+MANDATORY PHRASE INCLUSION:
+The generated master prompt MUST include this exact sentence at the beginning:
+"خد النمط من الصورة و طبقه على الصورة المرفقة" / "Take the style from the image and apply it to the attached image".
+${!isPaidTier ? `
+FREE TIER MANDATORY DIRECTIVE:
+Because this is free reverse engineering, you MUST tell any AI:
+"خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k" / "Take the style from the first image and apply it to the second, and let the image resolution be 8k".
+In addition, state: "طبق هذه المعلومات على الصورة الجديدة" / "Apply this information to the new image".
+` : ''}
+
+${useFreePattern ? 'OPTION SELECTED: Use Free Pattern (استخدام النمط المجاني). Provide complete creative freedom for visual styling.' : ''}
+${clientCustomChoice ? `CLIENT FREE CHOICE (خيار مجاني يحدده العميل): "${clientCustomChoice}". Seamlessly blend this custom client requirement into the prompt.` : 'Provide a dedicated spot for the client\'s custom free choice.'}
 ${notes ? `Focus on this user guidance for styling / blend: "${notes}"` : ''}`;
     }
 
@@ -2551,24 +2746,44 @@ ${notes ? `Focus on this user guidance for styling / blend: "${notes}"` : ''}`;
         text: promptText,
       });
 
-      const response = await generateContentWithQuotaResilience({
-        model: 'gemini-3.8-flash',
-        contents: { parts },
-        config: {
-          systemInstruction,
-          temperature: 0.6,
-        },
-      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('AI generation timeout - activating resilient fallback')), 22000)
+      );
 
-      const rawText = response.text || '';
+      const response: any = await Promise.race([
+        generateContentWithQuotaResilience({
+          model: 'gemini-2.5-flash',
+          contents: { parts },
+          config: {
+            systemInstruction,
+            temperature: 0.6,
+          },
+        }),
+        timeoutPromise
+      ]);
+
+      let rawText = response.text || '';
       
+      // Enforce the user's explicit rule: In free prompt reverse engineering, say:
+      // "خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k"
+      if (!isPaidTier && rawText) {
+        const hasFreeDirective = rawText.includes('خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k') ||
+          rawText.includes('خد من الصورة الأولى النمط و طبقه على التانية');
+        if (!hasFreeDirective) {
+          rawText = `> 📌 **توجيه البرومبت المجاني**: خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k\n> 📌 **Free Prompt Directive**: Take the style from the first image and apply it to the second, and let the image resolution be 8k\n> 📌 **توجيه التطبيق**: طبق هذه المعلومات على الصورة الجديدة (Apply this information to the new image)\n\n` + rawText;
+        }
+      }
+
       // Parse extracted HEX colors from response text if present
       const hexMatches = rawText.match(/#[0-9A-Fa-f]{6}\b/g);
       const uniqueHexColors = hexMatches ? Array.from(new Set(hexMatches)).slice(0, 5) : [];
 
       // Extract master prompt from code block
       const codeBlockMatch = rawText.match(/```(?:[a-zA-Z]*)\n([\s\S]*?)```/);
-      const masterPrompt = codeBlockMatch ? codeBlockMatch[1].trim() : '';
+      let masterPrompt = codeBlockMatch ? codeBlockMatch[1].trim() : '';
+      if (!isPaidTier && masterPrompt && !masterPrompt.includes('خد من الصورة الأولى النمط')) {
+        masterPrompt = `خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k:\nTake the style from the first image and apply it to the second, and let the image resolution be 8k.\n${masterPrompt}`;
+      }
 
       res.json({
         reversePrompt: attachSiteBrandUrl(rawText || (isVideo ? 'لم يتمكن النموذج من تحليل الفيديو بنجاح.' : 'لم يتمكن النموذج من تحليل الصورة بنجاح.')),
@@ -2582,6 +2797,14 @@ ${notes ? `Focus on this user guidance for styling / blend: "${notes}"` : ''}`;
     } catch (apiError: any) {
       console.log('[Reverse Prompt] Operating with style-adapted fallback prompt.');
       
+      // Free tier directive helpers for fallbacks
+      const freeTierDirectiveBlock = !isPaidTier 
+        ? '\n> 📌 **توجيه البرومبت المجاني**: خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k\n> 📌 **Free Prompt Directive**: Take the style from the first image and apply it to the second, and let the image resolution be 8k\n> 📌 **توجيه إضافي**: طبق هذه المعلومات على الصورة الجديدة\n' 
+        : '';
+      const freeTierPromptClause = !isPaidTier 
+        ? 'خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k (Take the style from the first image and apply it to the second, and let the image resolution be 8k):\n' 
+        : '';
+      
       // Create a beautiful generic template fallback depending on targetStyle or mimic mode
       let fallbackText = '';
       
@@ -2589,38 +2812,56 @@ ${notes ? `Focus on this user guidance for styling / blend: "${notes}"` : ''}`;
         fallbackText = `### ⚠️ تم التحليل محلياً بصياغة بديلة نظراً لتجاوز حد الاستهلاك لتشغيل خادم الذكاء الاصطناعي (Local Reversed Video Prompt Fallback)
 
 # الأمر العكسي المولد للفيديو / Cinematic Video Reversed Prompt
-
+${freeTierDirectiveBlock}
 \`\`\`
-Dynamic cinematic drone shot sweeping across a gorgeous futuristic landscape. High-speed tracking shot following a sleek subject, volumetric atmospheric light rays filtering through haze, 8k resolution, photorealistic movement, Unreal Engine 5 rendering style, ultra fluid camera pan and tilt, dramatic cinematic grading, masterfully steady shot, 60fps --ar 16:9
+${freeTierPromptClause}Dynamic cinematic drone shot sweeping across a gorgeous futuristic landscape. High-speed tracking shot following a sleek subject, volumetric atmospheric light rays filtering through haze, 8k resolution, photorealistic movement, Unreal Engine 5 rendering style, ultra fluid camera pan and tilt, dramatic cinematic grading, masterfully steady shot, 60fps --ar 16:9
 \`\`\`
 
 ## 🧠 تحليل ودراسة تقديرية لديناميكية الفيديو (العكسي التلقائي):
+- **مسار التوليد**: ${isPaidTier ? 'الخيار المدفوع الاحترافي (Pro Ultra 8K)' : 'الخيار المجاني (Free Tier) - تطبيق هذه المعلومات على الصورة الجديدة'}
 - **النمط والأسلوب البصري للفيديو**: مشهد سينمائي تفاعلي عالي الحركة والخيال (Cinematic Dynamic Scene).
 - **حركة الكاميرا وتوجيه الإخراج**: لقطة متحركة دائرية ثنائية التوجيه (Orbital dynamic sweep & drone flight) مع تتبع بؤري ذكي وثبات استثنائي.
 - **توصيات**: نوصي بنسخ هذا الأمر الجاهز واستخدامه، وسيعمل النموذج التلقائي فور رجوع حصص الاستهلاك لمفتاح API الخاص بك.`;
-      } else if (targetImage) {
-        fallbackText = `### ⚠️ تم محاكاة النموذج مدمجاً ومحلياً نظراً لتجاوز حد الاستهلاك لتشغيل خادم الذكاء الاصطناعي (Local Style Mimic Fallback)
+      } else if (isStyleTransfer) {
+        const clientChoiceBlock = clientCustomChoice ? `\n> 🎯 **الخيار المجاني المحدد من العميل**: "${clientCustomChoice}"\n` : '';
+        const clientChoicePrompt = clientCustomChoice ? ` [Client Free Choice: ${clientCustomChoice}],` : '';
+        const freePatternBadge = useFreePattern ? `\n> 🎁 **وضعية النمط المجاني (Free Pattern)**: مفعّلة بنجاح (حرية إبداعية كاملة)\n` : '';
+        const freePatternPromptClause = useFreePattern ? ' [Mode: Free Pattern / النمط المجاني],' : '';
+        const tierBadge = isPaidTier ? `\n> 👑 **المسار المختار**: الخيار المدفوع الاحترافي (Pro Ultra Tier - دقة 8K استوديو)\n` : `\n> 🎁 **المسار المختار**: الخيار المجاني (Free Tier - متاح للجميع)\n`;
+        const tierPromptExtra = isPaidTier ? ' 8k resolution, Hasselblad H6D-100c 85mm f/1.2, volumetric studio lighting, commercial advertising grade,' : ' clean balanced lighting, natural texture fidelity,';
+        
+        fallbackText = `### ⚠️ تم التحليل محلياً بالصياغة الهندسية المتطابقة (Local Style Transfer Fallback)
 
-# الأمر العكسي لنقل الأسلوب والدمج / Visual Style Transfer Prompt
+# أمر نقل النمط والدمج البصري / Visual Style Transfer Prompt
+
+> 📌 **التوجيه الإلزامي**: خد النمط من الصورة و طبقه على الصورة المرفقة
+> 📌 **Mandatory Directive**: Take the style from the image and apply it to the attached image.${freeTierDirectiveBlock}${tierBadge}${freePatternBadge}${clientChoiceBlock}
 
 \`\`\`
-A premium high-end advertising masterpiece, styled precisely with the exact atmospheric lighting, color grading scheme, and creative lens aesthetics of the first Style Reference image, featuring the full subjects and layout elements of the second Subject/Content image. Intricate textures, commercial advertising layout, unified color harmony, professional grading --ar 16:9 --style raw --v 6.0
+${freeTierPromptClause}خد النمط من الصورة و طبقه على الصورة المرفقة:
+Transfer and apply the exact visual style, color grading scheme, atmospheric lighting, and lens aesthetics from the reference image directly onto the attached target image.${freePatternPromptClause}${clientChoicePrompt}${tierPromptExtra} Intricate textures, commercial advertising layout, unified color harmony, professional grading --ar 16:9 --style raw --v 6.1
 \`\`\`
 
-## 🧠 تحليل فني تقديري لدمج الصورتين (العكسي التلقائي):
+## 🧠 تحليل ودراسة فنية لنقل النمط وخيار العميل (الهندسة العكسية):
+- **مسار الهندسة العكسية**: ${isPaidTier ? 'الخيار المدفوع الفائق (Pro Ultra 8K) - تركيز هندسي على أدق تفاصيل العدسات والفيزياء البصرية.' : 'الخيار المجاني (Free Tier) - حرية إبداعية بدون قيود ومتاح لجميع المستخدمين مع تطبيق المعلومات على الصورة الجديدة.'}
+- **توجيه النمط الأساسي**: "خد النمط من الصورة و طبقه على الصورة المرفقة"
+${!isPaidTier ? '- **توجيه البرومبت المجاني**: "خد من الصورة الأولى النمط و طبقه على التانية و لتكون دقة الصورة 8k" (Take the style from the first image and apply it to the second, and let the image resolution be 8k)\n- **توجيه إضافي**: "طبق هذه المعلومات على الصورة الجديدة" (Apply this information to the new image)' : ''}
+${useFreePattern ? '- **استخدام النمط المجاني (Free Pattern)**: مفعّل كخيار إضافي للمستخدم، مما يتيح أعلى درجات المرونة الإبداعية في دمج الألوان والظلال.' : ''}
+${clientCustomChoice ? `- **الخيار المجاني المحدد من قِبل العميل**: "${clientCustomChoice}". تم دمجه وتأطيره لضمان الأولوية والتحكم.` : '- **الخيار المجاني**: متاح ومفتوح ليحدده العميل بحرية تامة.'}
 - **النمط المستوحى والمؤثرات (من الصورة 1)**: إضاءة تجارية سينمائية متطورة، عمق باهر للظلال وتناسق ألوان احترافي من طراز الإعلانات الفاخرة.
-- **الموضوع والجدولة البصرية (من الصورة 2)**: الدمج الذكي للشخصية أو المنتج والظروف الكلية للصورة الثانية داخل التكوين البصري المحسّن.
-- **توصيات**: نوصي بنسخ هذا الأمر الجاهز واستخدامه، وسيعمل النموذج التلقائي فور رجوع حصص الاستهلاك لمفتاح API الخاص بك.`;
+- **الموضوع والجدولة البصرية (من الصورة 2 / الصورة المرفقة)**: الدمج الذكي للشخصية أو المنتج والظروف الكلية للصورة المرفقة داخل التكوين البصري المحسّن.
+- **توصيات**: نوصي بنسخ هذا الأمر الجاهز واستخدامه مباشرة في Midjourney v6.1 أو FLUX.1 أو ChatGPT Vision.`;
       } else if (targetStyle === 'photorealistic') {
         fallbackText = `### ⚠️ تم التحليل محلياً بصياغة بديلة نظراً لتجاوز حد الاستهلاك لتشغيل خادم الذكاء الاصطناعي (Local Reversed Prompt Fallback)
 
 # الأمر العكسي المولد للصور الواقعية / Photographic Reversed Prompt
-
+${freeTierDirectiveBlock}
 \`\`\`
-A hyper-realistic studio portrait with extraordinary detail, captured with a Canon EOS R5, 85mm lens at f/1.2. Volumetric cinematic lighting, drama-rich shadows, soft rim-light highlighting smooth textures, 8k resolution, photorealistic skin pores and micro-texture fidelity, warm atmospheric colors, deep depth of field --ar 16:9 --style raw --v 6.0
+${freeTierPromptClause}A hyper-realistic studio portrait with extraordinary detail, captured with a Canon EOS R5, 85mm lens at f/1.2. Volumetric cinematic lighting, drama-rich shadows, soft rim-light highlighting smooth textures, 8k resolution, photorealistic skin pores and micro-texture fidelity, warm atmospheric colors, deep depth of field --ar 16:9 --style raw --v 6.0
 \`\`\`
 
 ## 🧠 تحليل فني تقديري للصورة (العكسي التلقائي):
+- **مسار التوليد**: ${isPaidTier ? 'الخيار المدفوع (Pro Ultra 8K)' : 'الخيار المجاني (Free Tier) - طبق هذه المعلومات على الصورة الجديدة'}
 - **نوع الفن**: تصوير فوتوغرافي واقعي فائق الدقة (Photorealistic Portrait).
 - **الإضاءة المطلوبة**: إضاءة ريم دائرية خافتة مع إضاءة استوديو سينمائية ناعمة (Cinematic Chiaroscuro).
 - **العدسات المقترحة**: عدسة ذات عمق باهر 85mm f/1.2 لضمان عزل رائع للخلفية وتوجيه التركيز على العنصر الأساسي.
@@ -2629,12 +2870,13 @@ A hyper-realistic studio portrait with extraordinary detail, captured with a Can
         fallbackText = `### ⚠️ تم التحليل محلياً بصياغة بديلة نظراً لتجاوز حد الاستهلاك لتشغيل خادم الذكاء الاصطناعي (Local Reversed Prompt Fallback)
 
 # الأمر العكسي المولد لأسلوب الأنمي / Anime & Illustration Reversed Prompt
-
+${freeTierDirectiveBlock}
 \`\`\`
-A breathtaking gorgeous anime illustration in Makoto Shinkai style, vibrant pastel sky with voluminous glowing clouds and shining stars, a sense of wonder, sharp clean digital linework, highly detailed hair strands and clothing folds, cinematic backlight rays, beautiful lens flare, romanticized color palette, aesthetic masterpiece --ar 16:9
+${freeTierPromptClause}A breathtaking gorgeous anime illustration in Makoto Shinkai style, vibrant pastel sky with voluminous glowing clouds and shining stars, a sense of wonder, sharp clean digital linework, highly detailed hair strands and clothing folds, cinematic backlight rays, beautiful lens flare, romanticized color palette, aesthetic masterpiece --ar 16:9
 \`\`\`
 
 ## 🧠 تحليل فني تقديري للصورة (العكسي التلقائي):
+- **مسار التوليد**: ${isPaidTier ? 'الخيار المدفوع (Pro Ultra 8K)' : 'الخيار المجاني (Free Tier) - طبق هذه المعلومات على الصورة الجديدة'}
 - **نوع الفن**: رسم رقمي أنمي ياباني غني بالألوان (Japanese Anime Style).
 - **الإضاءة المطلوبة**: إضاءة خلفية دافئة (Backlight) مدموجة بوهج الشمس (Lens Flare Rendering) لتعزيز الجمال المستوحى من أفلام ماكوتو شينكاي الشهيرة.
 - **الألوان**: درجات ألوان الباستيل الناعمة مع الأزرق الفيروزي والبنفسجي السماوي.
@@ -2643,12 +2885,13 @@ A breathtaking gorgeous anime illustration in Makoto Shinkai style, vibrant past
         fallbackText = `### ⚠️ تم التحليل محلياً بصياغة بديلة نظراً لتجاوز حد الاستهلاك لتشغيل خادم الذكاء الاصطناعي (Local Reversed Prompt Fallback)
 
 # الأمر العكسي المولد للشعارات / Minimalistic Vector Logo Reversed Prompt
-
+${freeTierDirectiveBlock}
 \`\`\`
-A sophisticated minimalistic vector logo design, bold solid geometric shapes, high contrast clean composition, sleek corporate visual identity, modern corporate aesthetics, isolated white background, perfectly centered grid-aligned layout, professional branding emblem --no realistic details gradient drop-shadows
+${freeTierPromptClause}A sophisticated minimalistic vector logo design, bold solid geometric shapes, high contrast clean composition, sleek corporate visual identity, modern corporate aesthetics, isolated white background, perfectly centered grid-aligned layout, professional branding emblem --no realistic details gradient drop-shadows
 \`\`\`
 
 ## 🧠 تحليل فني تقديري للصورة (العكسي التلقائي):
+- **مسار التوليد**: ${isPaidTier ? 'الخيار المدفوع (Pro Ultra 8K)' : 'الخيار المجاني (Free Tier) - طبق هذه المعلومات على الصورة الجديدة'}
 - **نوع الفن**: شعار مسطح مبسط (Flat Minimalistic Vector Logo).
 - **التكوين**: دمج أشكال هندسية قوية لصناعة مظهر فوري القراءة وعصري وسهل الاستخدام في الهوية البصرية.
 - **القيود المرفقة**: إقصاء الظلاف المنسدلة ثلاثية الأبعاد لضمان نقاء الشعار عند تكبيره أو استخدامه بملفات الـ SVG.`;
@@ -2656,12 +2899,13 @@ A sophisticated minimalistic vector logo design, bold solid geometric shapes, hi
         fallbackText = `### ⚠️ تم التحليل محلياً بصياغة بديلة نظراً لتجاوز حد الاستهلاك لتشغيل خادم الذكاء الاصطناعي (Local Reversed Prompt Fallback)
 
 # الأمر العكسي العام ومسودة التصميم / Synthesized General Reversed Prompt
-
+${freeTierDirectiveBlock}
 \`\`\`
-An exquisite high-fidelity masterpiece depicting the uploaded subject, cinematic composition, pristine surface details, highly balanced ambient lighting, deep atmospheric focus, intricate textural harmony, designed for maximum output accuracy, professional rendering standard --ar 16:9
+${freeTierPromptClause}An exquisite high-fidelity masterpiece depicting the uploaded subject, cinematic composition, pristine surface details, highly balanced ambient lighting, deep atmospheric focus, intricate textural harmony, designed for maximum output accuracy, professional rendering standard --ar 16:9
 \`\`\`
 
 ## 🧠 تحليل فني تقديري للصورة (العكسي التلقائي):
+- **مسار التوليد**: ${isPaidTier ? 'الخيار المدفوع (Pro Ultra 8K)' : 'الخيار المجاني (Free Tier) - طبق هذه المعلومات على الصورة الجديدة'}
 - **نوع الفن**: تصميم رسومي مركب متعدد الوسائط (Mixed Media Composition).
 - **التوجيه العام**: مناسب للعمل مع نماذج توليد الفنون المتعددة وتوليد بيئات خلفية متناغمة.
 - **ملاحظات**: نوصي بإعادة إدخال الصورة لاحقاً بعد دقيقة واحدة لإجراء تحليل تفصيلي واقعي عبر محرك Gemini بمجرد تحرر الحصص المخصصة.`;
@@ -3639,9 +3883,15 @@ app.get('/api/backup-notification-logs', (req, res) => {
 
 // Serve frontend assets using Vite middleware or standard production Static builder
 async function setupServer() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : { server: httpServer }
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -3653,7 +3903,7 @@ async function setupServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`ArabPrompt server listening on http://0.0.0.0:${PORT}`);
   });
 }

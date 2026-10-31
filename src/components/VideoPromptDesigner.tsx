@@ -8,7 +8,7 @@ import {
   Video, Sparkles, Sliders, Play, RotateCcw, Copy, Check, Cpu,
   Download, FileVideo, Layout, AlertTriangle, ShieldCheck, Layers, HelpCircle,
   Film, Compass, Camera, Zap, Anchor, Wind, Eye, RefreshCw, Layers2, Maximize, Clock,
-  Image, Info, Flame, ToggleLeft, Activity, ListOrdered, Share2, Upload, Trash2, VideoOff
+  Image, Info, Flame, ToggleLeft, Activity, ListOrdered, Share2, Upload, Trash2, VideoOff, Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ModelType, AppLanguage } from '../types';
@@ -1774,12 +1774,21 @@ export default function VideoPromptDesigner({ lang, onSendToTester, onLogPrompt 
                       {veoError}
                     </p>
                   </div>
-                  <div className="pt-2">
+                  <div className="pt-2 flex items-center justify-center gap-2 flex-wrap">
                     <button
                       onClick={handleGenerateVeoVideo}
                       className="px-5 py-2 bg-stone-900 hover:bg-stone-850 border border-stone-800 text-xs font-bold rounded-lg text-white transition cursor-pointer"
                     >
                       {lang === 'ar' ? 'إعادة محاولة الاتصال' : 'Retry Connection'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro', billingCycle: 'annual' } }));
+                      }}
+                      className="px-5 py-2 bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:opacity-95 text-white text-xs font-black rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-md"
+                    >
+                      <Crown className="w-3.5 h-3.5" />
+                      <span>{lang === 'ar' ? 'الترقية الآن والدفع' : 'Upgrade & Checkout Now'}</span>
                     </button>
                   </div>
                 </motion.div>

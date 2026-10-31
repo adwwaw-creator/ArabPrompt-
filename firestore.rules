@@ -103,7 +103,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email != null && (request.auth.token.email == 'adwwaw@gmail.com' || request.auth.token.email == 'adwwaw@GMAIL.COM');
+      return isSignedIn() && request.auth.token.email != null && 
+        (request.auth.token.email == 'adwwaw@gmail.com' || request.auth.token.email == 'adwwaw@GMAIL.COM' ||
+         request.auth.token.email == 'adouaourachid@gmail.com' || request.auth.token.email == 'adouaourachid@GMAIL.COM');
     }
 
     function isValidSubscriptionRequest(val) {
@@ -125,9 +127,10 @@ service cloud.firestore {
     // Rules for User Profiles (Protected against unauthorized self-upgrades)
     match /users/{userId} {
       allow get: if (isSignedIn() && request.auth.uid == userId && isValidId(userId)) || isAdmin();
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isEmailVerified() && isValidUser(incoming()) &&
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming()) &&
                     (isAdmin() || !incoming().keys().hasAny(['plan']) || incoming().plan == 'free');
-      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isEmailVerified() && isValidUser(incoming()) &&
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming()) &&
                     (isAdmin() || 
                      !incoming().keys().hasAny(['plan']) || 
                      (existing().keys().hasAny(['plan']) && incoming().plan == existing().plan) ||

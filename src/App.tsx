@@ -17,19 +17,24 @@ import PromptIdeaGenerator from './components/PromptIdeaGenerator';
 import DiffusionDBGuide from './components/DiffusionDBGuide';
 import CloudBackupCenter from './components/CloudBackupCenter';
 import PrivacySettings from './components/PrivacySettings';
+import AdminDashboard from './components/AdminDashboard';
 import Pricing from './components/Pricing';
 import PromptTemplates from './components/PromptTemplates';
+import PromptLibrary from './components/PromptLibrary';
+import DawAiPortal from './components/DawAiPortal';
 import VisualConceptLibrary from './components/VisualConceptLibrary';
 import AuthModal, { AuthMode } from './components/AuthModal';
 import CheckoutModal from './components/CheckoutModal';
 import PaywallGate from './components/PaywallGate';
 import { getSubscription, UserSubscription, SubscriptionPlan, recordGenerationUsage, isPaidSubscriber } from './utils/subscriptionService';
 import { BackupMetadata, getBackupConfig, saveBackupConfig, searchGDriveBackup, uploadGDriveBackup, uploadDropboxBackup, backupToDropboxSimulated, backupToICloudSimulated, backupToCustomBackendSimulated } from './utils/cloudBackup';
-import { ActiveTab, PromptHistoryItem, ModelType, AppLanguage, SUPPORTED_LANGUAGES } from './types';
-import { ToastNotification } from './components/ToastNotification';
-import { Sparkles, Crown } from 'lucide-react';
+import { ActiveTab, PromptHistoryItem, ModelType, AppLanguage, SUPPORTED_LANGUAGES, AppFontSize } from './types';
+import { ToastNotification, showToast } from './components/ToastNotification';
+import { GooglePlayGuideModal } from './components/GooglePlayGuideModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { Sparkles, Crown, Smartphone, AlertCircle, RefreshCw, Mail, CheckCircle } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { initAuth, googleSignIn, logout } from './utils/firebaseAuth';
+import { initAuth, googleSignIn, logout, resendVerificationEmail, reloadAndCheckEmailVerified, auth } from './utils/firebaseAuth';
 import {
   syncUserProfile,
   getUserHistory,
@@ -116,7 +121,7 @@ export default function App() {
       if (search) {
         const params = new URLSearchParams(search);
         const tab = params.get('tab') as ActiveTab;
-        if (tab && ['builder', 'templates', 'cinema', 'visual_library', 'ideas', 'reverse', 'sequence', 'drone', 'diffusiondb', 'history', 'privacy', 'pricing'].includes(tab)) {
+        if (tab && ['dawai', 'builder', 'library', 'templates', 'cinema', 'visual_library', 'ideas', 'reverse', 'sequence', 'drone', 'diffusiondb', 'history', 'privacy', 'pricing', 'admin'].includes(tab)) {
           return tab;
         }
         if (params.get('seq') || params.get('sequenceId') || params.get('sharedSeq') || params.get('sseq')) {
@@ -171,6 +176,27 @@ export default function App() {
     } catch {}
   }, [darkMode]);
 
+  // Typography font size scaling ('small' | 'medium' | 'large') - Default: 'medium'
+  const [fontSize, setFontSize] = useState<AppFontSize>(() => {
+    try {
+      const saved = localStorage.getItem('arabi_prompt_font_size') as AppFontSize;
+      if (saved && ['small', 'medium', 'large'].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return 'medium';
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.remove('font-size-small', 'font-size-medium', 'font-size-large');
+    document.documentElement.classList.add(`font-size-${fontSize}`);
+    try {
+      localStorage.setItem('arabi_prompt_font_size', fontSize);
+    } catch {}
+  }, [fontSize]);
+
+  const [isPlayGuideOpen, setIsPlayGuideOpen] = useState(false);
+
   const [history, setHistory] = useState<PromptHistoryItem[]>(() => {
     try {
       const consent = localStorage.getItem('arabi_prompt_consent_local_history');
@@ -215,15 +241,19 @@ export default function App() {
     };
     window.addEventListener('subscription-updated', handleSubUpdated);
     const handleCheckoutEvent = (e: any) => {
-      const plan = e.detail?.plan || 'lite';
+      const plan = e.detail?.plan || 'pro';
       const cycle = e.detail?.billingCycle || 'annual';
       handleOpenCheckout(plan, cycle);
     };
     window.addEventListener('open-checkout', handleCheckoutEvent);
+    window.addEventListener('open-checkout-modal', handleCheckoutEvent);
+    window.addEventListener('trigger-upgrade', handleCheckoutEvent);
 
     return () => {
       window.removeEventListener('subscription-updated', handleSubUpdated);
       window.removeEventListener('open-checkout', handleCheckoutEvent);
+      window.removeEventListener('open-checkout-modal', handleCheckoutEvent);
+      window.removeEventListener('trigger-upgrade', handleCheckoutEvent);
     };
   }, []);
 
@@ -257,6 +287,11 @@ export default function App() {
         setCurrentUser(user);
         setGoogleAccessToken(token);
         setAuthChecking(false);
+        if (user) {
+          syncUserProfile(user).catch((err) => {
+            console.warn('Auto profile sync deferred:', err);
+          });
+        }
       },
       () => {
         setCurrentUser(null);
@@ -270,6 +305,99 @@ export default function App() {
       }
     };
   }, []);
+
+  const isEmailVerified = currentUser
+    ? Boolean(
+        currentUser.emailVerified ||
+        currentUser.providerData?.some(p => p.providerId === 'google.com' || p.providerId === 'apple.com' || p.providerId === 'github.com')
+      )
+    : false;
+
+  const [isCheckingVerificationApp, setIsCheckingVerificationApp] = useState(false);
+  const [appResendCooldown, setAppResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (appResendCooldown > 0) {
+      const t = setTimeout(() => setAppResendCooldown(appResendCooldown - 1), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [appResendCooldown]);
+
+  const handleVerifyNowApp = async () => {
+    if (!currentUser) return;
+    setIsCheckingVerificationApp(true);
+    try {
+      const verified = await reloadAndCheckEmailVerified(currentUser);
+      if (verified) {
+        if (auth.currentUser) {
+          setCurrentUser({ ...auth.currentUser });
+          syncUserProfile({ ...auth.currentUser, emailVerified: true }).catch(() => {});
+        }
+        showToast({
+          title: lang === 'ar' ? '🎉 تم تأكيد البريد الإلكتروني!' : '🎉 Email Verified!',
+          message: lang === 'ar' ? 'تم تفعيل حسابك بنجاح، ويمكنك الآن استخدام المنصة والوصول لكافة الميزات.' : 'Account active with full access.',
+          type: 'info'
+        });
+      } else {
+        showToast({
+          title: lang === 'ar' ? 'البريد لم يُؤكد بعد' : 'Not Verified Yet',
+          message: lang === 'ar' ? 'يرجى مراجعة بريدك الإلكتروني والنقر على رابط التفعيل، وافحص مجلد الرسائل غير المرغوب فيها (Spam).' : 'Please click the link in your email and check your Spam folder.',
+          type: 'warning'
+        });
+      }
+    } catch (err: any) {
+      console.warn('Verify now error:', err);
+    } finally {
+      setIsCheckingVerificationApp(false);
+    }
+  };
+
+  const handleResendVerificationApp = async () => {
+    if (!currentUser || appResendCooldown > 0) return;
+    try {
+      await resendVerificationEmail(currentUser);
+      setAppResendCooldown(30);
+      showToast({
+        title: lang === 'ar' ? 'تم إرسال رابط التأكيد' : 'Verification Link Sent',
+        message: lang === 'ar' ? `تم إرسال رابط تفعيل الحساب إلى ${currentUser.email}.` : `Verification link sent to ${currentUser.email}.`,
+        type: 'info'
+      });
+    } catch (err: any) {
+      showToast({
+        title: lang === 'ar' ? 'تعذر إرسال الرابط' : 'Failed to send link',
+        message: err instanceof Error ? err.message : 'Please try again later',
+        type: 'error'
+      });
+    }
+  };
+
+  // Auto-refresh verification status when window regains focus or polls
+  useEffect(() => {
+    if (!currentUser || isEmailVerified) return;
+
+    const checkFocus = async () => {
+      try {
+        const verified = await reloadAndCheckEmailVerified(currentUser);
+        if (verified && auth.currentUser) {
+          setCurrentUser({ ...auth.currentUser });
+          syncUserProfile({ ...auth.currentUser, emailVerified: true }).catch(() => {});
+          showToast({
+            title: lang === 'ar' ? '🎉 تم تفعيل الحساب بنجاح!' : '🎉 Email Verified!',
+            message: lang === 'ar' ? 'تم رصد تأكيد البريد الإلكتروني، واستمتع بالوصول الكامل.' : 'Your email has been verified.',
+            type: 'info'
+          });
+        }
+      } catch {}
+    };
+
+    window.addEventListener('focus', checkFocus);
+    const poller = setInterval(checkFocus, 10000);
+
+    return () => {
+      window.removeEventListener('focus', checkFocus);
+      clearInterval(poller);
+    };
+  }, [currentUser, isEmailVerified, lang]);
 
   // Periodic Scheduled Auto-Backup Daemon
   useEffect(() => {
@@ -760,13 +888,71 @@ export default function App() {
         setLang={setLang} 
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
         backupConfig={backupConfig}
         onOpenBackupCenter={() => setIsBackupCenterOpen(true)}
         user={currentUser}
         onOpenAuth={handleOpenAuth}
         subscription={subscription}
         onOpenCheckout={handleOpenCheckout}
+        onOpenPlayGuide={() => setIsPlayGuideOpen(true)}
       />
+
+      {/* Persistent Email Verification Warning Banner for Unconfirmed Users */}
+      {currentUser && !isEmailVerified && (
+        <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-stone-950 font-bold text-xs px-4 py-2.5 shadow-md border-b-2 border-amber-700">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2.5 text-center md:text-start">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+              <span className="p-1 rounded-lg bg-black/15 text-stone-950 shrink-0">
+                <AlertCircle className="w-4 h-4 text-stone-950" />
+              </span>
+              <span className="text-stone-950 text-xs font-black">
+                {lang === 'ar' ? '⚠️ تنبيه أمني: حسابك بحاجة إلى تأكيد البريد الإلكتروني لتفعيل الوصول الكامل:' : '⚠️ Security Notice: Please verify your email for full platform access:'}
+              </span>
+              <span className="text-stone-900 text-[11px] font-mono bg-white/40 px-2 py-0.5 rounded-md">
+                {currentUser.email}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleVerifyNowApp}
+                disabled={isCheckingVerificationApp}
+                className="px-3 py-1.5 rounded-xl bg-stone-950 hover:bg-stone-850 text-amber-300 font-black text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                title={lang === 'ar' ? 'فحص حالة النقر على الرابط وتحديث الحساب فوراً' : 'Check link status and verify now'}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingVerificationApp ? 'animate-spin' : ''}`} />
+                <span>{lang === 'ar' ? 'تحقق الآن 🔄' : 'Verify Now 🔄'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendVerificationApp}
+                disabled={appResendCooldown > 0}
+                className="px-3 py-1.5 rounded-xl bg-white/60 hover:bg-white/90 text-stone-950 font-black text-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                title={lang === 'ar' ? 'إعادة إرسال رابط التفعيل' : 'Resend verification link'}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>
+                  {appResendCooldown > 0
+                    ? `(${appResendCooldown}s)`
+                    : (lang === 'ar' ? 'إعادة الإرسال' : 'Resend Link')}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenAuth('profile')}
+                className="px-2.5 py-1.5 rounded-xl bg-black/10 hover:bg-black/20 text-stone-950 font-bold text-xs underline cursor-pointer"
+              >
+                <span>{lang === 'ar' ? 'تعليمات التفعيل' : 'Instructions'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sticky Paid Platform Notice Bar */}
       {!isPaidSubscriber(subscription) ? (
@@ -836,12 +1022,43 @@ export default function App() {
             />
           </div>
         )}
+        {activeTab === 'dawai' && (
+          <DawAiPortal 
+            lang={lang} 
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenAuth={() => handleOpenAuth('login')}
+            onOpenCheckout={() => handleOpenCheckout('pro')}
+          />
+        )}
+
+        {activeTab === 'library' && (
+          <PromptLibrary
+            lang={lang}
+            onSendToBuilder={(promptText, model, tone, category) => {
+              setPassedPrompt(promptText);
+              setBuilderInitialValues({
+                concept: promptText,
+                model: model || 'gemini',
+                tone: tone || 'احترافي',
+                category: category || 'creative'
+              });
+              setActiveTab('builder');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
+          />
+        )}
+
         {activeTab === 'builder' && (
           <PromptBuilder 
             lang={lang} 
             onSendToTester={handleSendToTester} 
             onNavigateToReverse={() => setActiveTab('reverse')}
             onNavigateToTemplates={() => setActiveTab('templates')}
+            onNavigateToLibrary={() => setActiveTab('library')}
             onLogPrompt={handleLogPrompt}
             initialValues={builderInitialValues}
           />
@@ -991,6 +1208,14 @@ export default function App() {
             onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
           />
         )}
+        {activeTab === 'admin' && (
+          <AdminDashboard
+            lang={lang}
+            currentUser={currentUser}
+            onOpenAuth={handleOpenAuth}
+            onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
+          />
+        )}
         {activeTab === 'pricing' && (
           <Pricing
             lang={lang}
@@ -1026,6 +1251,18 @@ export default function App() {
             />
           </div>
 
+          {/* Google Play & Mobile App PWA Install Guide */}
+          <div className="pt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setIsPlayGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-[#c29b40]" />
+              <span>{lang === 'ar' ? '📱 تطبيق الهاتف ومتجر Google Play' : '📱 Google Play & Mobile App'}</span>
+            </button>
+          </div>
+
           <p className="text-[10px] text-stone-400">
             {lang === 'ar' 
               ? 'صنع بذكاء عبر نموذج Google Gemini © 2026' 
@@ -1034,6 +1271,8 @@ export default function App() {
         </div>
       </footer>
       <ToastNotification lang={lang} onOpenCheckout={handleOpenCheckout} />
+      <OfflineIndicator lang={lang} />
+      <GooglePlayGuideModal isOpen={isPlayGuideOpen} onClose={() => setIsPlayGuideOpen(false)} />
       <CloudBackupCenter
         isOpen={isBackupCenterOpen}
         onClose={() => setIsBackupCenterOpen(false)}
@@ -1058,9 +1297,16 @@ export default function App() {
         lang={lang}
         currentUser={currentUser}
         initialMode={authModalMode}
+        isMandatory={Boolean(currentUser && !isEmailVerified)}
         onAuthSuccess={(user) => {
           setCurrentUser(user);
-          setIsAuthModalOpen(false);
+          const verified = Boolean(
+            user.emailVerified ||
+            user.providerData?.some(p => p.providerId === 'google.com' || p.providerId === 'apple.com' || p.providerId === 'github.com')
+          );
+          if (verified) {
+            setIsAuthModalOpen(false);
+          }
         }}
         onLogout={handleLogout}
         onOpenApiDashboard={() => setActiveTab('privacy')}
@@ -1076,6 +1322,7 @@ export default function App() {
         onSubscriptionSuccess={(newSub) => {
           setSubscription(newSub);
         }}
+        onOpenAuth={() => handleOpenAuth('login')}
       />
     </div>
   );

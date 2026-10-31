@@ -81,7 +81,10 @@ export default function PaywallGate({
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
           <button
             type="button"
-            onClick={() => onOpenCheckout('pro')}
+            onClick={() => {
+              if (onOpenCheckout) onOpenCheckout('pro');
+              window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro' } }));
+            }}
             className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 text-white font-black text-xs shadow-md hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Crown className="w-3.5 h-3.5" />
@@ -183,7 +186,10 @@ export default function PaywallGate({
           <button
             type="button"
             id="paywall-cta-subscribe-btn"
-            onClick={() => onOpenCheckout('pro')}
+            onClick={() => {
+              if (onOpenCheckout) onOpenCheckout('pro');
+              window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro' } }));
+            }}
             className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:from-[#7e5c1d] hover:to-amber-600 text-white font-black text-sm shadow-lg shadow-[#c29b40]/25 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Crown className="w-4 h-4" />

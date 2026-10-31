@@ -2,9 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="منصة احترافية مدفوعة بالكامل لتوليد وهندسة الأوامر الرقمية والسينمائية (Prompts) بدقة فائقة وبدون إعلانات." />
     <title>ArabPrompt | عرب برومبت - المنصة الاحترافية المدفوعة بالكامل</title>
+    <!-- Suppress benign Vite HMR WebSocket errors in iframe environment and clean dev caches -->
+    <script>
+      (function() {
+        const origError = console.error;
+        console.error = function(...args) {
+          if (args[0] && typeof args[0] === 'string' && (args[0].includes('WebSocket') || args[0].includes('@vite/client'))) {
+            console.debug(...args);
+            return;
+          }
+          origError.apply(console, args);
+        };
+
+        // If in development or preview, ensure old service workers and chunk caches do not corrupt React modules
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.location.hostname.includes('ais-dev')) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) {
+              regs[i].unregister();
+            }
+          });
+          if ('caches' in window) {
+            caches.keys().then(function(keys) {
+              for (var j = 0; j < keys.length; j++) {
+                caches.delete(keys[j]);
+              }
+            });
+          }
+        }
+      })();
+    </script>
     <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3312377428939400"
      crossorigin="anonymous"></script>

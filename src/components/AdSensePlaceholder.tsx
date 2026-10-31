@@ -117,12 +117,10 @@ export default function AdSensePlaceholder({
   const handleTriggerUpgrade = () => {
     if (onOpenCheckout) {
       onOpenCheckout();
-    } else {
-      // Fallback: dispatch custom event or scroll to pricing
-      try {
-        window.dispatchEvent(new CustomEvent('open-checkout-modal', { detail: { plan: 'lite' } }));
-      } catch {}
     }
+    try {
+      window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'lite' } }));
+    } catch {}
   };
 
   return (

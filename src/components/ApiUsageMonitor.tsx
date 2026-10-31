@@ -280,26 +280,28 @@ export default function ApiUsageMonitor({
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
-            {onOpenCheckout && (
-              <button
-                type="button"
-                onClick={() => onOpenCheckout('pro')}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 text-white font-black text-xs shadow-md hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5" />
-                <span>{lang === 'ar' ? 'اشترك الآن في باقة Pro ($7/شهر)' : 'Subscribe to Pro ($7/mo)'}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {onOpenCheckout && (
-              <button
-                type="button"
-                onClick={() => onOpenCheckout('lite')}
-                className="py-2.5 px-4 rounded-xl bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 font-bold text-xs hover:bg-stone-50 transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>{lang === 'ar' ? 'باقة Lite الأرخص ($3.50/شهر)' : 'Starter Lite ($3.50/mo)'}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenCheckout) onOpenCheckout('pro');
+                window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro' } }));
+              }}
+              className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 text-white font-black text-xs shadow-md hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span>{lang === 'ar' ? 'اشترك الآن في باقة Pro ($7/شهر)' : 'Subscribe to Pro ($7/mo)'}</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenCheckout) onOpenCheckout('lite');
+                window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'lite' } }));
+              }}
+              className="py-2.5 px-4 rounded-xl bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 font-bold text-xs hover:bg-stone-50 transition cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <span>{lang === 'ar' ? 'باقة Lite الأرخص ($3.50/شهر)' : 'Starter Lite ($3.50/mo)'}</span>
+            </button>
           </div>
         </div>
       )}
@@ -323,17 +325,18 @@ export default function ApiUsageMonitor({
             </div>
           </div>
 
-          {onOpenCheckout && (
-            <button
-              type="button"
-              onClick={() => onOpenCheckout('pro')}
-              className="py-2 px-3 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 text-white font-black text-xs shadow-xs hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>{lang === 'ar' ? 'الترقية إلى باقة Pro غير المحدودة' : 'Upgrade to Unlimited Pro'}</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenCheckout) onOpenCheckout('pro');
+              window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro' } }));
+            }}
+            className="py-2 px-3 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 text-white font-black text-xs shadow-xs hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>{lang === 'ar' ? 'الترقية إلى باقة Pro غير المحدودة والدفع فوراً' : 'Upgrade to Unlimited Pro & Pay'}</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 

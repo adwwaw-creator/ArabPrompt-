@@ -10,6 +10,7 @@ export interface TranslationDictionary {
   appTitle: string;
   appBadge: string;
   appTagline: string;
+  navDawai: string;
   navBuilder: string;
   navCinema: string;
   navVisualLibrary: string;
@@ -22,6 +23,7 @@ export interface TranslationDictionary {
   navPrivacy: string;
   navPricing: string;
   navTemplates: string;
+  navPromptLibrary: string;
   geminiConnected: string;
   localPreview: string;
   toggleDarkMode: string;
@@ -108,6 +110,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: '💎 مدفوع بالكامل',
     appTagline: 'المنصة الاحترافية المدفوعة بالكامل لهندسة وصياغة الأوامر الذكية',
+    navDawai: 'بوابة DawAi',
     navBuilder: 'مُهندس الأوامر',
     navCinema: 'أفلام وسيناريو AI',
     navVisualLibrary: 'مكتبة الصور الفنية (36)',
@@ -120,6 +123,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'التكاليف والخصوصية',
     navPricing: 'الأسعار والباقات',
     navTemplates: 'قوالب الأوامر',
+    navPromptLibrary: 'مكتبة البرومتات',
     geminiConnected: 'نموذج Gemini جاهز',
     localPreview: 'معاينة محلية',
     toggleDarkMode: 'المظهر الليلي',
@@ -197,8 +201,9 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
 
   en: {
     appTitle: 'ArabPrompt',
-    appBadge: '💎 100% PAID',
-    appTagline: '100% Paid Platform for Advanced AI Prompt Engineering & Cinema',
+    appBadge: 'PRO',
+    appTagline: 'Advanced AI Prompt Engineering & Synthesis Core',
+    navDawai: 'DawAi Portal',
     navBuilder: 'Prompt Builder',
     navCinema: 'Cinema Studio',
     navVisualLibrary: 'Visual Art Library',
@@ -211,6 +216,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'Costs & Privacy',
     navPricing: 'Pricing & Plans',
     navTemplates: 'Prompt Templates',
+    navPromptLibrary: 'Prompt Library',
     geminiConnected: 'Gemini Engine Connected',
     localPreview: 'Local Preview',
     toggleDarkMode: 'Dark Mode',
@@ -290,6 +296,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: 'FR',
     appTagline: 'Ingénierie avancée des invites et synthèse IA',
+    navDawai: 'Portail DawAi',
     navBuilder: 'Générateur de Prompts',
     navCinema: 'Studio Cinéma',
     navVisualLibrary: 'Bibliothèque Visuelle',
@@ -302,6 +309,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'Confidentialité & Sécurité',
     navPricing: 'Tarifs & Abonnements',
     navTemplates: 'Modèles de Prompts',
+    navPromptLibrary: 'Bibliothèque de Prompts',
     geminiConnected: 'Moteur Gemini Connecté',
     localPreview: 'Aperçu Local',
     toggleDarkMode: 'Mode Sombre',
@@ -381,6 +389,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: 'ES',
     appTagline: 'Ingeniería avanzada de prompts y síntesis de IA',
+    navDawai: 'Portal DawAi',
     navBuilder: 'Constructor de Prompts',
     navCinema: 'Estudio de Cine',
     navVisualLibrary: 'Biblioteca Visual',
@@ -393,6 +402,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'Privacidad y Seguridad',
     navPricing: 'Precios y Planes',
     navTemplates: 'Plantillas de Prompts',
+    navPromptLibrary: 'Biblioteca de Prompts',
     geminiConnected: 'Motor Gemini Conectado',
     localPreview: 'Vista previa local',
     toggleDarkMode: 'Modo Oscuro',
@@ -472,6 +482,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: 'DE',
     appTagline: 'KI-Prompt-Engineering und Synthese-Plattform',
+    navDawai: 'DawAi Portal',
     navBuilder: 'Prompt-Builder',
     navCinema: 'Kino Studio',
     navVisualLibrary: 'Visuelle Bibliothek',
@@ -484,6 +495,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'Datenschutz & Sicherheit',
     navPricing: 'Preise & Tarife',
     navTemplates: 'Prompt-Vorlagen',
+    navPromptLibrary: 'Prompt-Bibliothek',
     geminiConnected: 'Gemini-Engine Verbunden',
     localPreview: 'Lokale Vorschau',
     toggleDarkMode: 'Dunkelmodus',
@@ -563,6 +575,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: 'TR',
     appTagline: 'Gelişmiş Yapay Zeka Prompt Mühendisliği ve Sentezi',
+    navDawai: 'DawAi Portalı',
     navBuilder: 'Prompt Mühendisi',
     navCinema: 'Sinema Stüdyosu',
     navVisualLibrary: 'Görsel Kütüphane',
@@ -575,6 +588,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'Gizlilik ve Güvenlik',
     navPricing: 'Fiyatlandırma & Paketler',
     navTemplates: 'Prompt Şablonları',
+    navPromptLibrary: 'Prompt Kütüphanesi',
     geminiConnected: 'Gemini Motoru Bağlandı',
     localPreview: 'Yerel Önizleme',
     toggleDarkMode: 'Karanlık Mod',
@@ -654,6 +668,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: 'JA',
     appTagline: '次世代AIプロンプトエンジニアリング＆シンセシス',
+    navDawai: 'DawAiポータル',
     navBuilder: 'プロンプトビルダー',
     navCinema: 'シネマスタジオ',
     navVisualLibrary: 'ビジュアルライブラリ',
@@ -666,6 +681,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: 'プライバシーと安全性',
     navPricing: '料金プラン',
     navTemplates: 'プロンプトテンプレート',
+    navPromptLibrary: 'プロンプトライブラリ',
     geminiConnected: 'Geminiエンジン接続済',
     localPreview: 'ローカルプレビュー',
     toggleDarkMode: 'ダークモード切替',
@@ -745,6 +761,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     appTitle: 'ArabPrompt',
     appBadge: '中文',
     appTagline: '下一代人工智能提示词工程与合成核心',
+    navDawai: 'DawAi 创意门户',
     navBuilder: '提示词架构师',
     navCinema: 'AI 电影编剧',
     navVisualLibrary: '视觉概念库 (36)',
@@ -757,6 +774,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     navPrivacy: '隐私与安全中心',
     navPricing: '价格与方案',
     navTemplates: '提示词模板',
+    navPromptLibrary: '提示词库',
     geminiConnected: 'Gemini引擎已连接',
     localPreview: '本地离线预览',
     toggleDarkMode: '夜间深色模式',

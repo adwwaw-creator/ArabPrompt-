@@ -4,17 +4,19 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { ActiveTab, AppLanguage, SUPPORTED_LANGUAGES } from '../types';
+import { ActiveTab, AppLanguage, SUPPORTED_LANGUAGES, AppFontSize } from '../types';
 import { getTranslation } from '../utils/translations';
 import { 
   Sparkles, Globe, Cpu, History, Layers, PenTool, CheckCircle, AlertCircle, 
   Image, Film, BarChart3, Music, Sun, Moon, Video, Database, Layout, Cloud, 
-  Shield, RefreshCw, LogIn, User as UserIcon, Lightbulb, ChevronDown, Check,
-  Clapperboard, Calculator, Palette, CreditCard, LayoutTemplate, Crown, Activity
+  Shield, ShieldCheck, RefreshCw, LogIn, User as UserIcon, Lightbulb, ChevronDown, Check,
+  Clapperboard, Calculator, Palette, CreditCard, LayoutTemplate, Crown, Activity,
+  Type, BookOpen
 } from 'lucide-react';
 import { BackupMetadata } from '../utils/cloudBackup';
 import { User } from 'firebase/auth';
 import { UserSubscription, SubscriptionPlan, getUsageStats, UsageStats } from '../utils/subscriptionService';
+import { InstallPrompt } from './InstallPrompt';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -23,12 +25,15 @@ interface HeaderProps {
   setLang: (lang: AppLanguage) => void;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
+  fontSize?: AppFontSize;
+  setFontSize?: (size: AppFontSize) => void;
   backupConfig: BackupMetadata;
   onOpenBackupCenter: () => void;
   user: User | null;
   onOpenAuth: (mode?: 'login' | 'signup' | 'profile' | 'usage') => void;
   subscription?: UserSubscription;
   onOpenCheckout?: (plan?: SubscriptionPlan) => void;
+  onOpenPlayGuide?: () => void;
 }
 
 export default function Header({ 
@@ -38,18 +43,23 @@ export default function Header({
   setLang, 
   darkMode, 
   setDarkMode, 
+  fontSize = 'medium',
+  setFontSize,
   backupConfig, 
   onOpenBackupCenter, 
   user, 
   onOpenAuth,
   subscription,
-  onOpenCheckout
+  onOpenCheckout,
+  onOpenPlayGuide
 }: HeaderProps) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [prevScrollPos, setPrevScrollPos] = useState(0);
   const [visible, setVisible] = useState(true);
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
+  const fontRef = useRef<HTMLDivElement>(null);
   const [usageStats, setUsageStats] = useState<UsageStats>(() => getUsageStats(subscription));
 
   useEffect(() => {
@@ -80,6 +90,9 @@ export default function Header({
     const handleClickOutside = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
         setIsLangDropdownOpen(false);
+      }
+      if (fontRef.current && !fontRef.current.contains(e.target as Node)) {
+        setIsFontDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -157,10 +170,12 @@ export default function Header({
     };
   }, []);
 
-  const isAdmin = user?.email?.toLowerCase() === 'adwwaw@gmail.com';
+  const isAdmin = user?.email?.toLowerCase() === 'adwwaw@gmail.com' || user?.email?.toLowerCase() === 'adouaourachid@gmail.com';
 
   const menuItems = [
+    { id: 'dawai' as ActiveTab, label: t.navDawai, icon: Sparkles },
     { id: 'builder' as ActiveTab, label: t.navBuilder, icon: PenTool },
+    { id: 'library' as ActiveTab, label: t.navPromptLibrary, icon: BookOpen },
     { id: 'templates' as ActiveTab, label: t.navTemplates, icon: LayoutTemplate },
     { id: 'reverse' as ActiveTab, label: t.navReverse, icon: Image },
     { id: 'cinema' as ActiveTab, label: t.navCinema, icon: Clapperboard },
@@ -170,13 +185,30 @@ export default function Header({
     { id: 'drone' as ActiveTab, label: t.navDrone, icon: Video },
     { id: 'diffusiondb' as ActiveTab, label: t.navDiffusionDB, icon: Database },
     { id: 'history' as ActiveTab, label: t.navHistory, icon: History },
-    ...(isAdmin ? [{ id: 'privacy' as ActiveTab, label: t.navPrivacy, icon: Calculator }] : []),
+    ...(isAdmin ? [
+      { id: 'admin' as ActiveTab, label: lang === 'ar' ? 'لوحة الإدارة' : 'Admin Dashboard', icon: ShieldCheck },
+      { id: 'privacy' as ActiveTab, label: t.navPrivacy, icon: Calculator }
+    ] : []),
     { id: 'pricing' as ActiveTab, label: t.navPricing, icon: CreditCard },
   ];
 
   const formatMobileNavLabel = (id: ActiveTab, label: string) => {
     if (lang === 'ar') {
       switch (id) {
+        case 'dawai':
+          return (
+            <span className="flex flex-col items-center leading-[1.1]">
+              <span>بوابة</span>
+              <span>DawAi</span>
+            </span>
+          );
+        case 'library':
+          return (
+            <span className="flex flex-col items-center leading-[1.1]">
+              <span>مكتبة</span>
+              <span>البرومتات</span>
+            </span>
+          );
         case 'drone':
           return (
             <span className="flex flex-col items-center leading-[1.1]">
@@ -240,6 +272,13 @@ export default function Header({
               <span>الأوامر</span>
             </span>
           );
+        case 'admin':
+          return (
+            <span className="flex flex-col items-center leading-[1.1]">
+              <span>لوحة</span>
+              <span>الإدارة</span>
+            </span>
+          );
         case 'privacy':
           return (
             <span className="flex flex-col items-center leading-[1.1]">
@@ -289,22 +328,22 @@ export default function Header({
           ? 'translate-y-0 opacity-100 shadow-sm' 
           : '-translate-y-full opacity-0 pointer-events-none shadow-none'
       }`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 overflow-x-clip">
+        <div className="flex justify-between items-center h-16 sm:h-20 gap-2">
           
           {/* Logo Section */}
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#916a24] via-[#c29b40] to-[#ecd197] flex items-center justify-center text-white shadow-sm ring-2 ring-[#c29b40]/20">
-              <Sparkles className="w-5 h-5 animate-pulse" />
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-[#916a24] via-[#c29b40] to-[#ecd197] flex items-center justify-center text-white shadow-sm ring-2 ring-[#c29b40]/20 shrink-0">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-[#1c1a16] dark:text-stone-100 flex items-center gap-1.5 font-sans">
+              <h1 className="text-sm sm:text-2xl font-black tracking-tight text-[#1c1a16] dark:text-stone-100 flex items-center gap-1 font-sans">
                 <span>{t.appTitle}</span>
-                <span className="text-xs font-semibold px-2 py-0.5 bg-[#c29b40]/10 text-[#9c7524] dark:text-amber-400 rounded-full">
+                <span className="text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.2 bg-[#c29b40]/10 text-[#9c7524] dark:text-amber-400 rounded-full">
                   {t.appBadge}
                 </span>
               </h1>
-              <p className="text-xs text-stone-500 dark:text-stone-400 font-medium">
+              <p className="text-[10px] sm:text-xs text-stone-500 dark:text-stone-400 font-medium hidden md:block">
                 {t.appTagline}
               </p>
             </div>
@@ -334,7 +373,7 @@ export default function Header({
           </nav>
 
           {/* Utilities Panel */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             
             {/* API Status Indicator */}
             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-stone-200/80 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 text-[11px] font-medium text-stone-600 dark:text-stone-300">
@@ -353,14 +392,19 @@ export default function Header({
               )}
             </div>
 
+            {/* PWA InstallPrompt - hidden on small mobile to avoid crowding */}
+            <div className="hidden sm:block">
+              <InstallPrompt lang={lang} />
+            </div>
+
             {/* Cloud Backup Toggle Button */}
             <button
               id="cloud-backup-toggle-btn"
               onClick={onOpenBackupCenter}
-              className="relative flex items-center justify-center p-2.5 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all cursor-pointer shadow-3xs"
+              className="relative flex items-center justify-center p-2 sm:p-2.5 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all cursor-pointer shadow-3xs shrink-0"
               title={t.cloudBackup}
             >
-              <Cloud className="w-4 h-4 text-[#c29b40]" />
+              <Cloud className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#c29b40]" />
               {backupConfig.isEnabled && backupConfig.provider && (
                 <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -373,28 +417,85 @@ export default function Header({
             <button
               id="dark-mode-toggle-btn"
               onClick={() => setDarkMode(!darkMode)}
-              className="flex items-center justify-center p-2.5 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all cursor-pointer shadow-3xs"
+              className="flex items-center justify-center p-2 sm:p-2.5 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all cursor-pointer shadow-3xs shrink-0"
               title={t.toggleDarkMode}
             >
               {darkMode ? (
-                <Sun className="w-4 h-4 text-amber-500 animate-[spin_10s_linear_infinite]" />
+                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 animate-[spin_10s_linear_infinite]" />
               ) : (
-                <Moon className="w-4 h-4 text-stone-500" />
+                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-500" />
               )}
             </button>
+
+            {/* Font Size Selector (صغير / متوسط / كبير) */}
+            {setFontSize && (
+              <div className="relative" ref={fontRef}>
+                <button
+                  id="font-size-toggle-btn"
+                  onClick={() => setIsFontDropdownOpen(!isFontDropdownOpen)}
+                  className="flex items-center gap-1 p-2 sm:px-2.5 sm:py-2 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all text-xs font-bold cursor-pointer shadow-3xs shrink-0"
+                  title={lang === 'ar' ? 'تعديل حجم خط الكتابة (متوسط كافتراضي)' : 'Adjust typography scale'}
+                >
+                  <Type className="w-3.5 h-3.5 text-[#c29b40]" />
+                  <span className="font-sans text-[11px] font-bold hidden md:inline">
+                    {fontSize === 'small' 
+                      ? (lang === 'ar' ? 'خط صغير' : 'Small') 
+                      : fontSize === 'large' 
+                      ? (lang === 'ar' ? 'خط كبير' : 'Large') 
+                      : (lang === 'ar' ? 'خط متوسط' : 'Medium')}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform duration-200 hidden sm:block ${isFontDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isFontDropdownOpen && (
+                  <div className="absolute top-full mt-2 end-0 w-48 bg-[#fdfcfb] dark:bg-stone-900 rounded-xl shadow-xl border border-stone-200/90 dark:border-stone-800 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-3 py-1.5 border-b border-stone-100 dark:border-stone-800 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                      {lang === 'ar' ? 'حجم خط الكتابة' : 'Font Size Scale'}
+                    </div>
+                    <div className="py-1">
+                      {[
+                        { id: 'small', labelAr: 'خط صغير (13px)', labelEn: 'Small (13px)', descAr: 'مناسب للشاشات الصغيرة' },
+                        { id: 'medium', labelAr: 'خط متوسط (الافتراضي)', labelEn: 'Medium (Default)', descAr: 'متوازن ومريح للقراءة' },
+                        { id: 'large', labelAr: 'خط كبير (16px)', labelEn: 'Large (16px)', descAr: 'كبير وواضح جداً' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => {
+                            setFontSize(opt.id as AppFontSize);
+                            setIsFontDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors cursor-pointer ${
+                            fontSize === opt.id
+                              ? 'bg-[#c29b40]/15 dark:bg-[#c29b40]/25 text-[#916a24] dark:text-amber-400 font-bold'
+                              : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100/70 dark:hover:bg-stone-800 font-medium'
+                          }`}
+                        >
+                          <div className="flex flex-col items-start leading-snug">
+                            <span className="font-sans font-bold">{lang === 'ar' ? opt.labelAr : opt.labelEn}</span>
+                            {lang === 'ar' && (
+                              <span className="text-[10px] text-stone-400">{opt.descAr}</span>
+                            )}
+                          </div>
+                          {fontSize === opt.id && <Check className="w-3.5 h-3.5 text-[#c29b40] shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Multi-Language Dropdown Selector */}
             <div className="relative" ref={langRef}>
               <button
                 id="lang-selector-btn"
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all text-xs font-bold cursor-pointer shadow-3xs"
+                className="flex items-center gap-1 p-2 sm:px-2.5 sm:py-2 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all text-xs font-bold cursor-pointer shadow-3xs shrink-0"
                 title={t.selectLanguage}
               >
-                <Globe className="w-3.5 h-3.5 text-stone-500" />
                 <span className="text-sm leading-none">{currentLangObj.flag}</span>
-                <span className="hidden sm:inline font-sans">{currentLangObj.nativeName}</span>
-                <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
+                <span className="hidden md:inline font-sans">{currentLangObj.nativeName}</span>
+                <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform duration-200 hidden sm:block ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isLangDropdownOpen && (
@@ -429,11 +530,11 @@ export default function Header({
               )}
             </div>
 
-            {/* Real-time API Quota Monitor Indicator */}
+            {/* Real-time API Quota Monitor Indicator (compact on mobile) */}
             <button
               id="header-realtime-quota-btn"
               onClick={() => onOpenAuth('usage')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-black shadow-3xs cursor-pointer transition-all ${
+              className={`flex items-center gap-1 p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs font-black shadow-3xs cursor-pointer transition-all shrink-0 ${
                 usageStats.isLimitReached
                   ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 animate-pulse'
                   : usageStats.isNearLimit
@@ -454,13 +555,13 @@ export default function Header({
                   <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
                 )}
               </div>
-              <span className="font-mono font-black text-[11px]">
+              <span className="font-mono font-black text-[11px] hidden sm:inline">
                 {usageStats.statusLevel === 'unpaid' ? (
-                  lang === 'ar' ? '0 طلب (يلزم اشتراك)' : '0 reqs (Paid plan)'
+                  lang === 'ar' ? '0 طلب (يلزم اشتراك)' : '0 reqs'
                 ) : usageStats.isUnlimited ? (
-                  lang === 'ar' ? 'طلبات ∞' : '∞ reqs'
+                  lang === 'ar' ? '∞' : '∞'
                 ) : (
-                  `${usageStats.remainingRequests}/${usageStats.maxDailyPrompts} ${lang === 'ar' ? 'طلب' : 'left'}`
+                  `${usageStats.remainingRequests}/${usageStats.maxDailyPrompts}`
                 )}
               </span>
             </button>
@@ -469,27 +570,56 @@ export default function Header({
             {subscription?.plan && subscription.plan !== 'free' ? (
               <button
                 id="header-sub-badge"
-                onClick={() => onOpenCheckout ? onOpenCheckout(subscription.plan) : null}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-[#c29b40]/50 bg-gradient-to-r from-amber-500/15 via-[#c29b40]/25 to-amber-500/15 text-stone-900 dark:text-stone-100 font-black text-xs shadow-3xs cursor-pointer hover:border-[#c29b40] transition-all"
+                onClick={() => {
+                  if (onOpenCheckout) {
+                    onOpenCheckout(subscription.plan);
+                  } else {
+                    window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: subscription.plan } }));
+                  }
+                }}
+                className="flex items-center gap-1 px-2 py-1.5 sm:px-2.5 rounded-xl border border-[#c29b40]/50 bg-gradient-to-r from-amber-500/15 via-[#c29b40]/25 to-amber-500/15 text-stone-900 dark:text-stone-100 font-black text-xs shadow-3xs cursor-pointer hover:border-[#c29b40] transition-all shrink-0"
                 title={lang === 'ar' ? 'إدارة الاشتراك المميز' : 'Manage Subscription'}
               >
                 <Crown className="w-3.5 h-3.5 text-[#c29b40]" />
-                <span className="font-sans font-black text-[11px] tracking-wide">
+                <span className="font-sans font-black text-[10px] sm:text-[11px] tracking-wide">
                   {subscription.plan === 'studio' ? 'STUDIO' : subscription.plan === 'lite' ? 'LITE' : 'PRO'}
                 </span>
-                <span className="text-[10px] text-amber-500">
+                <span className="text-[10px] text-amber-500 hidden sm:inline">
                   {subscription.plan === 'lite' ? '⚡' : '⭐'}
                 </span>
               </button>
             ) : (
               <button
                 id="header-upgrade-btn"
-                onClick={() => onOpenCheckout ? onOpenCheckout('pro') : null}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:from-[#7e5c1d] hover:to-amber-600 text-white font-black text-xs shadow-md shadow-[#c29b40]/20 hover:opacity-95 transition-all cursor-pointer ring-1 ring-amber-400/40 animate-pulse"
-                title={lang === 'ar' ? 'اشترك الآن للوصول الكامل' : 'Subscribe Now for Full Access'}
+                onClick={() => {
+                  if (onOpenCheckout) {
+                    onOpenCheckout('pro');
+                  } else {
+                    window.dispatchEvent(new CustomEvent('open-checkout', { detail: { plan: 'pro' } }));
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 rounded-xl bg-gradient-to-r from-[#916a24] via-[#c29b40] to-amber-500 hover:from-[#7e5c1d] hover:to-amber-600 text-white font-black text-xs shadow-md shadow-[#c29b40]/20 hover:opacity-95 transition-all cursor-pointer ring-1 ring-amber-400/40 animate-pulse shrink-0"
+                title={lang === 'ar' ? 'اشترك الآن للوصول الكامل والدفع' : 'Subscribe Now for Full Access'}
               >
                 <Crown className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{lang === 'ar' ? 'اشترك الآن' : 'Subscribe'}</span>
+                <span className="text-[11px] sm:text-xs">{lang === 'ar' ? 'اشترك' : 'Subscribe'}</span>
+              </button>
+            )}
+
+            {/* Quick Admin Dashboard Access */}
+            {isAdmin && (
+              <button
+                id="header-admin-quick-btn"
+                onClick={() => setActiveTab('admin')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-3xs cursor-pointer shrink-0 ${
+                  activeTab === 'admin'
+                    ? 'bg-[#c29b40] text-white border-[#c29b40]'
+                    : 'bg-stone-900 text-amber-400 border-amber-500/40 hover:bg-stone-850 hover:border-amber-400'
+                }`}
+                title={lang === 'ar' ? 'لوحة تحكم المشرف' : 'Admin Dashboard'}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{lang === 'ar' ? 'الإدارة' : 'Admin'}</span>
               </button>
             )}
 
@@ -498,10 +628,10 @@ export default function Header({
               <button
                 id="header-user-profile-btn"
                 onClick={() => onOpenAuth('profile')}
-                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-[#c29b40]/30 bg-[#c29b40]/10 hover:bg-[#c29b40]/20 text-stone-850 dark:text-stone-100 transition-all cursor-pointer shadow-3xs"
+                className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border border-[#c29b40]/30 bg-[#c29b40]/10 hover:bg-[#c29b40]/20 text-stone-850 dark:text-stone-100 transition-all cursor-pointer shadow-3xs shrink-0"
                 title={t.accountProfile}
               >
-                <div className="w-7 h-7 rounded-lg bg-[#c29b40] text-stone-950 font-black text-xs flex items-center justify-center shadow-xs">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#c29b40] text-stone-950 font-black text-xs flex items-center justify-center shadow-xs">
                   {user.displayName ? user.displayName.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U')}
                 </div>
                 <div className="hidden xl:flex flex-col text-right rtl:text-right ltr:text-left max-w-[120px]">
@@ -517,11 +647,11 @@ export default function Header({
               <button
                 id="header-login-btn"
                 onClick={() => onOpenAuth('login')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all text-xs font-bold shadow-3xs cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 rounded-xl border border-stone-300/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#c29b40] dark:hover:text-amber-400 transition-all text-xs font-bold shadow-3xs cursor-pointer shrink-0"
                 title={t.signIn}
               >
                 <LogIn className="w-3.5 h-3.5 text-[#c29b40]" />
-                <span className="hidden sm:inline">{t.signIn}</span>
+                <span className="hidden sm:inline text-xs">{t.signIn}</span>
               </button>
             )}
           </div>
